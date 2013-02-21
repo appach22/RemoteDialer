@@ -28,7 +28,6 @@ class RemoteDevice extends Object implements Parcelable
 	@Override
     public boolean equals(Object obj) 
 	{
-		System.out.println("equals " + ((RemoteDevice)obj).m_name);
         if (obj == this)
             return true;
         if (obj == null || obj.getClass() != this.getClass())
@@ -54,7 +53,7 @@ class RemoteDevice extends Object implements Parcelable
 	@Override
 	public void writeToParcel(Parcel out, int flags)
 	{
-		System.out.println("to parcel " + m_name);
+		//System.out.println("to parcel " + m_name);
 		out.writeString(m_name);
 		out.writeInt(m_type);
 		out.writeString(m_host);
@@ -73,7 +72,7 @@ class RemoteDevice extends Object implements Parcelable
 	
 	private RemoteDevice(Parcel in) 
 	{
-		System.out.println("from parcel");
+		//System.out.println("from parcel");
 		m_name = in.readString();  
 		m_type = in.readInt();
 		m_host = in.readString();
@@ -83,7 +82,7 @@ class RemoteDevice extends Object implements Parcelable
 	@Override
 	public String toString()
 	{
-		System.out.println("toString " + m_name);
+		//System.out.println("toString " + m_name);
 		return m_name;
 	}
 }

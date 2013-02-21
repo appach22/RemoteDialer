@@ -22,6 +22,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -105,20 +107,32 @@ public class RemoteDialerService extends Service
 		public void onReceive(Context context, Intent intent)
 		{
 		    final String action = intent.getAction();
-		    if (action.equals(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION)) {
-		        if (intent.getBooleanExtra(WifiManager.EXTRA_SUPPLICANT_CONNECTED, false)) {
-		            System.out.println("Wifi connected");
-		            WifiManager wifi = (android.net.wifi.WifiManager) getSystemService(android.content.Context.WIFI_SERVICE);
-		            WifiInfo info = wifi.getConnectionInfo();
-		            if (info != null)
-		            {
-		            	System.out.println(info.getIpAddress());
-		            }
-		            else
-		            	System.out.println("no info");
-		        } else {
-		            System.out.println("Wifi disconnected");
-		        }
+//		    if (action.equals(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION))
+//		    {
+//		        if (intent.getBooleanExtra(WifiManager.EXTRA_SUPPLICANT_CONNECTED, false)) {
+//		            System.out.println("Wifi connected");
+//		            if (isWifiReady())
+//		            	startRemoteDialerService();
+//		        } else {
+//		            System.out.println("Wifi disconnected");
+//		            stopRemoteDialerService();
+//		        }
+//		    }
+		    if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION))
+		    {
+		    	NetworkInfo info = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO); 
+		    	if (info != null)
+		    	{
+		    		System.out.println("Network state is " + info.getState());
+		    		if (info.getState() == NetworkInfo.State.CONNECTED)
+		    		{
+		    			startRemoteDialerService();
+		    			return;
+		    		}
+		    	}
+		    	else
+		    		System.out.println("Network state error!");
+		    	stopRemoteDialerService();
 		    }
 		}
     }
@@ -129,6 +143,27 @@ public class RemoteDialerService extends Service
 		return null;
 	}
 
+	private boolean isWifiNetworkReady()
+	{
+        //WifiManager wifi = (android.net.wifi.WifiManager) getSystemService(android.content.Context.WIFI_SERVICE);
+        //WifiInfo info = wifi.getN
+		ConnectivityManager connManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+		NetworkInfo info = connManager.getActiveNetworkInfo();
+        if (info != null)
+        {
+        	System.out.println("isWifiNetworkReady(): " + info.getType() + " " + info.getState());
+        	// FIXME: иногда возвращает TYPE_MOBILE !!!!!!!1
+        	if (info.getType() == ConnectivityManager.TYPE_WIFI && info.getState() == NetworkInfo.State.CONNECTED)
+        		return true;
+        }
+        else
+        {
+        	System.out.println("no info");
+        	return false;
+        }
+        return false;
+	}
+	
 	private boolean isPhoneAvailable()
 	{
 		if (((TelephonyManager)getSystemService(TELEPHONY_SERVICE)).getPhoneType()
@@ -145,9 +180,26 @@ public class RemoteDialerService extends Service
     	sendBroadcast(clientIntent);	
 	}
 	
+	private void stopRemoteDialerService()
+	{
+		if (!m_isStarted)
+			return;
+		
+		m_devices.clear();
+		reportNewDevices();
+		if (m_listener != null)
+			m_jmdns.removeServiceListener(RDIALER_SERVICE_TYPE, m_listener);
+		m_jmdns.unregisterAllServices();
+		m_lock.release();
+		m_isStarted = false;
+        System.out.println("Service stopped");
+	}
+	
 	private void startRemoteDialerService()
 	{
 		if (m_isStarted)
+			return;
+		if (!isWifiNetworkReady())
 			return;
 		
         WifiManager wifi = (android.net.wifi.WifiManager) getSystemService(android.content.Context.WIFI_SERVICE);
@@ -190,6 +242,7 @@ public class RemoteDialerService extends Service
             m_serviceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE, m_deviceName, socket.getLocalPort(), RDIALER_SERVICE_DESCRIPTION);
             m_jmdns.registerService(m_serviceInfo);
             new CommandReceiveTask().execute(socket);
+            System.out.println("Service started");
             m_isStarted = true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -216,7 +269,8 @@ public class RemoteDialerService extends Service
 	    // Регистрируем слушателя состояния сети wifi
 	    m_connStateReceiver = new ConnectionStateReceiver();
 	    IntentFilter intentFilter = new IntentFilter();
-	    intentFilter.addAction(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
+	    //intentFilter.addAction(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
+	    intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
 	    registerReceiver(m_connStateReceiver, intentFilter);
 	    
 	    System.out.println("onCreate(): name=" + m_deviceName);
@@ -224,6 +278,9 @@ public class RemoteDialerService extends Service
 	
 	public int onStartCommand(Intent intent, int flags, int startId) 
 	{
+		System.out.println("onStartCommand");
+		if (intent == null)
+			return START_STICKY;
 		try
 		{
 			PendingIntent pi = intent.getParcelableExtra(CMD_PENDING_EXTRA);
@@ -235,6 +292,7 @@ public class RemoteDialerService extends Service
 			case CMD_GET_DEVICES:
 				if (pi != null)
 				{
+			    	startRemoteDialerService();
 					Intent clientIntent = new Intent().putExtra(DEVICES_EXTRA, m_devices);
 					pi.send(this, CMD_RES_SUCCESS, clientIntent);
 				}
@@ -253,9 +311,7 @@ public class RemoteDialerService extends Service
 
 	public void onDestroy() 
 	{
-		if (m_listener != null)
-			m_jmdns.removeServiceListener(RDIALER_SERVICE_TYPE, m_listener);
-		m_jmdns.unregisterAllServices();
+		stopRemoteDialerService();
         unregisterReceiver(m_connStateReceiver);
 	}
 
