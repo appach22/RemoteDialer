@@ -177,12 +177,13 @@ public class DialActivity extends Activity
 			RemoteDevice device = devices.get(i);
 			if (device.mType == RemoteDevice.DEVICE_TYPE_THIS)
 			{
-				device.mName += " (Это устройство)";
+				device.mName += (" " + getResources().getString(R.string.this_device));
 				devices.set(i, device);
 			}
 		}
-        ArrayAdapter<RemoteDevice> devicesAdapter = new ArrayAdapter<RemoteDevice>(getApplicationContext(),android.R.layout.simple_spinner_item,  devices);
+        ArrayAdapter<RemoteDevice> devicesAdapter = new ArrayAdapter<RemoteDevice>(getApplicationContext(),android.R.layout.simple_spinner_dropdown_item,  devices);
         spnDevices.setAdapter(devicesAdapter);
+        spnDevices.setPrompt(getResources().getString(R.string.select_device));
     }
     
     private String sendRequest(RemoteDevice device, String request)
