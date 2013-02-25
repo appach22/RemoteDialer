@@ -5,11 +5,13 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 
 import com.googlecode.androidannotations.annotations.Click;
 import com.googlecode.androidannotations.annotations.EActivity;
+import com.googlecode.androidannotations.annotations.TextChange;
 import com.googlecode.androidannotations.annotations.ViewById;
 
 import android.net.Uri;
@@ -20,12 +22,16 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.telephony.PhoneNumberUtils;
+import android.text.InputFilter.LengthFilter;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
 
 @EActivity(R.layout.activity_dial)
 public class DialActivity extends Activity
@@ -33,10 +39,6 @@ public class DialActivity extends Activity
 
 	private final static int CMD_CODE	= 1;
 
-    @ViewById
-    Button btnStart;
-    @ViewById
-    Button btnStop;
     @ViewById
     EditText edtNumber;
     @ViewById
@@ -74,7 +76,7 @@ public class DialActivity extends Activity
     	System.out.println("onStart");
     	PendingIntent pi = createPendingResult(RemoteDialerService.CMD_GET_DEVICES, new Intent(), 0);
     	// Получаем список уже найденных устройств
-		startService(new Intent(this, RemoteDialerService.class)
+		startService(new Intent(this, RemoteDialerService_.class)
 		.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_GET_DEVICES)
 		.putExtra(RemoteDialerService.CMD_PENDING_EXTRA, pi)
 		);	
@@ -83,7 +85,7 @@ public class DialActivity extends Activity
     	if (data == null)
     		return;
     	System.out.println(data.getSchemeSpecificPart());
-    	edtNumber.setText(data.getSchemeSpecificPart().trim());		
+    	edtNumber.setText(/*URLDecoder.decode(*/data.getSchemeSpecificPart().trim());		
 	}
 	
 	@Override
@@ -106,23 +108,25 @@ public class DialActivity extends Activity
 	    }
 	}
 	
-	@Click(R.id.btnStart)
-	public void StartService()
+	private void dialLocally(String number)
 	{
-		startService(new Intent(this, RemoteDialerService.class)
-			.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_START));	
+    	PendingIntent pi = createPendingResult(RemoteDialerService.CMD_DIAL_NUMBER, new Intent(), 0);
+    	// Получаем список уже найденных устройств
+		startService(new Intent(this, RemoteDialerService_.class)
+		.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_DIAL_NUMBER)
+		.putExtra(RemoteDialerService.CMD_PARAM_EXTRA, number)
+		.putExtra(RemoteDialerService.CMD_PENDING_EXTRA, pi)
+		);	
 	}
-
-	@Click(R.id.btnStop)
-	public void StopService()
-	{
-		stopService(new Intent(this, RemoteDialerService.class));	
-	}
-
+	
 	@Click(R.id.btnDial)
 	public void DialNumber()
 	{
-		sendRequest((RemoteDevice)spnDevices.getSelectedItem(), "DialNumber " + edtNumber.getText());
+		RemoteDevice device = (RemoteDevice)spnDevices.getSelectedItem();
+		if (device.mType == RemoteDevice.DEVICE_TYPE_THIS)
+			dialLocally(edtNumber.getText().toString());
+		else
+			sendRequest(device, "DialNumber " + edtNumber.getText());
 	}
 	
 	@Click(R.id.btnCancel)
@@ -149,6 +153,13 @@ public class DialActivity extends Activity
     			updateDevicesFromIntent(data);
     		}
     	}
+    	if (resultCode == RemoteDialerService.CMD_RES_FAILURE)
+    	{
+    		if (requestCode == RemoteDialerService.CMD_GET_DEVICES)
+    			Toast.makeText(this, "Error getting device list", Toast.LENGTH_LONG).show();
+    		else if (requestCode == RemoteDialerService.CMD_DIAL_NUMBER)
+    			Toast.makeText(this, "Error dialing number", Toast.LENGTH_LONG).show();
+    	}
     }
     
     @Override
@@ -161,6 +172,15 @@ public class DialActivity extends Activity
     private void updateDevicesFromIntent(Intent intent)
     {
 		ArrayList<RemoteDevice> devices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
+		for (int i = 0; i < devices.size(); ++i)
+		{
+			RemoteDevice device = devices.get(i);
+			if (device.mType == RemoteDevice.DEVICE_TYPE_THIS)
+			{
+				device.mName += " (Это устройство)";
+				devices.set(i, device);
+			}
+		}
         ArrayAdapter<RemoteDevice> devicesAdapter = new ArrayAdapter<RemoteDevice>(getApplicationContext(),android.R.layout.simple_spinner_item,  devices);
         spnDevices.setAdapter(devicesAdapter);
     }
@@ -171,7 +191,7 @@ public class DialActivity extends Activity
         String reply = "";
 		try
 		{
-			clientSocket = new Socket(device.m_host, device.m_port);
+			clientSocket = new Socket(device.mHost, device.mPort);
 	        DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
 	        BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 	        outToServer.writeBytes(request + "\n");
@@ -180,12 +200,19 @@ public class DialActivity extends Activity
 		} catch (UnknownHostException e)
 		{
 			e.printStackTrace();
+			Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
 		} catch (IOException e)
 		{
 			e.printStackTrace();
+			Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
 		}
     	return reply;
     }
 
+	@TextChange(R.id.edtNumber)
+	void onNumberChange(TextView tv, CharSequence text) 
+	{
+		System.out.println(PhoneNumberUtils.formatNumber(edtNumber.getText().toString()));
+	}
     
 }

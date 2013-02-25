@@ -10,19 +10,21 @@ import android.os.Parcelable;
 class RemoteDevice extends Object implements Parcelable
 {
 	protected final static int DEVICE_TYPE_NONE				= 0; 
-	protected final static int DEVICE_TYPE_LOCAL_NETWORK	= 1; 
+	protected final static int DEVICE_TYPE_THIS				= 1; 
+	protected final static int DEVICE_TYPE_LOCAL_NETWORK	= 2; 
 	
-	public String m_name;
-	public int m_type;
-	public String m_host;
-	public int m_port;
+	public String mName;
+	public int mType;
+	public String mHost;
+	public int mPort;
+	public boolean mIsLocal;
 
 	public RemoteDevice()
 	{
-		m_name = "Undefined";
-		m_type = DEVICE_TYPE_NONE;
-		m_host = "";
-		m_port = 0;
+		mName = "Undefined";
+		mType = DEVICE_TYPE_NONE;
+		mHost = "";
+		mPort = 0;
 	}
 	
 	@Override
@@ -32,15 +34,22 @@ class RemoteDevice extends Object implements Parcelable
             return true;
         if (obj == null || obj.getClass() != this.getClass())
             return false;
-        return m_name.equalsIgnoreCase(((RemoteDevice)obj).m_name);
+        return mName.equalsIgnoreCase(((RemoteDevice)obj).mName);
 	}
 	
-	RemoteDevice Init(ServiceInfo info)
+	public RemoteDevice Init(ServiceInfo info)
 	{
-		m_name = info.getName();
-		m_type = DEVICE_TYPE_LOCAL_NETWORK;
-		m_host = info.getHostAddresses()[0];
-		m_port = info.getPort();
+		mName = info.getName();
+		mType = DEVICE_TYPE_LOCAL_NETWORK;
+		mHost = info.getHostAddresses()[0];
+		mPort = info.getPort();
+		return this;
+	}
+
+	public RemoteDevice InitLocal(String deviceName)
+	{
+		mName = deviceName;
+		mType = DEVICE_TYPE_THIS;
 		return this;
 	}
 
@@ -54,10 +63,10 @@ class RemoteDevice extends Object implements Parcelable
 	public void writeToParcel(Parcel out, int flags)
 	{
 		//System.out.println("to parcel " + m_name);
-		out.writeString(m_name);
-		out.writeInt(m_type);
-		out.writeString(m_host);
-		out.writeInt(m_port);
+		out.writeString(mName);
+		out.writeInt(mType);
+		out.writeString(mHost);
+		out.writeInt(mPort);
 	}
 	
 	public final static Parcelable.Creator<RemoteDevice> CREATOR 
@@ -73,16 +82,16 @@ class RemoteDevice extends Object implements Parcelable
 	private RemoteDevice(Parcel in) 
 	{
 		//System.out.println("from parcel");
-		m_name = in.readString();  
-		m_type = in.readInt();
-		m_host = in.readString();
-		m_port = in.readInt();
+		mName = in.readString();  
+		mType = in.readInt();
+		mHost = in.readString();
+		mPort = in.readInt();
 	}
 	
 	@Override
 	public String toString()
 	{
 		//System.out.println("toString " + m_name);
-		return m_name;
+		return mName;
 	}
 }
