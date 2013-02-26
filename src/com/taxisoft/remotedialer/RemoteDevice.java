@@ -17,7 +17,7 @@ class RemoteDevice extends Object implements Parcelable
 	public int mType;
 	public String mHost;
 	public int mPort;
-	public boolean mIsLocal;
+	public String mModel;
 
 	public RemoteDevice()
 	{
@@ -43,6 +43,7 @@ class RemoteDevice extends Object implements Parcelable
 		mType = DEVICE_TYPE_LOCAL_NETWORK;
 		mHost = info.getHostAddresses()[0];
 		mPort = info.getPort();
+		mModel = info.getNiceTextString();
 		return this;
 	}
 
@@ -67,6 +68,7 @@ class RemoteDevice extends Object implements Parcelable
 		out.writeInt(mType);
 		out.writeString(mHost);
 		out.writeInt(mPort);
+		out.writeString(mModel);
 	}
 	
 	public final static Parcelable.Creator<RemoteDevice> CREATOR 
@@ -86,12 +88,13 @@ class RemoteDevice extends Object implements Parcelable
 		mType = in.readInt();
 		mHost = in.readString();
 		mPort = in.readInt();
+		mModel = in.readString();
 	}
 	
 	@Override
 	public String toString()
 	{
 		//System.out.println("toString " + m_name);
-		return mName;
+		return mName + " " + mModel + " (" + mPort + ")";
 	}
 }

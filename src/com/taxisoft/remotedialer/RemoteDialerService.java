@@ -134,6 +134,7 @@ public class RemoteDialerService extends Service
 		    		System.out.println("Network state is " + info.getState());
 		    		if (info.getState() == NetworkInfo.State.CONNECTED)
 		    		{
+		    			stopRemoteDialerService();
 		    			startRemoteDialerService();
 		    			return;
 		    		}
@@ -296,7 +297,7 @@ public class RemoteDialerService extends Service
 	    		if (isPhoneAvailable())
 	    		{
 		            ServerSocket socket = new ServerSocket(0);
-		            mServiceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE, mDeviceName, socket.getLocalPort(), RDIALER_SERVICE_DESCRIPTION);
+		            mServiceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE, mDeviceName, socket.getLocalPort(), DEFAULT_DEVICE_NAME);
 		            mJmdns.registerService(mServiceInfo);
 		            // Запускаем фоновую обработку запросов
 		            processRequest(socket);
