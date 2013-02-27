@@ -39,7 +39,7 @@ public class RemoteDialerService extends Service
 	public final static String DEFAULT_DEVICE_NAME = android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL;
 	//private final static String LOG_TAG = "RemoteDialerService";
     private final static String RDIALER_SERVICE_TYPE = "_rdialer._tcp.local.";
-    private final static String RDIALER_SERVICE_DESCRIPTION = "Remote Dialer service";
+    //private final static String RDIALER_SERVICE_DESCRIPTION = "Remote Dialer service";
 	protected final static String DEVICES_EXTRA = "devices";
 	protected final static String DEVICES_BROADCAST = "com.taxisoft.remotedialer.devices";
 	protected final static String CMD_EXTRA = "command";
@@ -134,7 +134,7 @@ public class RemoteDialerService extends Service
 		    		System.out.println("Network state is " + info.getState());
 		    		if (info.getState() == NetworkInfo.State.CONNECTED)
 		    		{
-		    			stopRemoteDialerService();
+		    			//stopRemoteDialerService();
 		    			startRemoteDialerService();
 		    			return;
 		    		}
@@ -194,7 +194,7 @@ public class RemoteDialerService extends Service
 		try
 		{
 			while ((mServiceState & state) == 0)
-				wait(100);
+				Thread.sleep(100);
 		} catch (InterruptedException e)
 		{
 			// TODO Auto-generated catch block
@@ -204,16 +204,47 @@ public class RemoteDialerService extends Service
 		return mServiceState;
 	}
 	
+	private void addDevice(ServiceInfo info)
+	{
+    	RemoteDevice device = new RemoteDevice().Init(info);
+    	// Если список уже содержит это устройство - обновляем его в списке (на случай, если порт поменялся)
+    	if (mDevices.contains(device))
+    		mDevices.remove(device);
+		mDevices.add(device);
+		reportNewDevices();
+	}
+	
+	private void removeDevice(ServiceInfo info)
+	{
+    	RemoteDevice device = new RemoteDevice().Init(info);
+    	if (mDevices.contains(device))
+    	{
+    		mDevices.remove(device);
+    		reportNewDevices();
+    	}
+	}
+	
 	private void stopRemoteDialerService()
 	{
+		System.out.println("stop enter " + mServiceState);
 		if (mServiceState == STATE_STOPPING || mServiceState == STATE_STOPPED)
 			return;
 		if (mServiceState == STATE_STARTING)
-			if (waitForServiceState(STATE_STARTING | STATE_STOPPED) == STATE_STOPPED)
+			if (waitForServiceState(STATE_RUNNING | STATE_STOPPED) == STATE_STOPPED)
 				return;
 		
 		mServiceState = STATE_STOPPING;
+		// Удаляем из списка все устройства кроме локального (если таковое есть)
+		RemoteDevice thisDevice = null;
+		for (int i = 0; i < mDevices.size(); ++i)
+			if (mDevices.get(i).mType == RemoteDevice.DEVICE_TYPE_THIS)
+			{
+				thisDevice = mDevices.get(i);
+				break;
+			}
 		mDevices.clear();
+		if (thisDevice != null)
+			mDevices.add(thisDevice);
 		reportNewDevices();
 		if (mListener != null)
 			mJmdns.removeServiceListener(RDIALER_SERVICE_TYPE, mListener);
@@ -223,10 +254,12 @@ public class RemoteDialerService extends Service
 			mLock.release();
 		mServiceState = STATE_STOPPED;
         System.out.println("Service stopped");
+		System.out.println("stop exit " + mServiceState);
 	}
 	
 	private void startRemoteDialerService()
 	{
+		System.out.println("start enter " + mServiceState);
 		if (mServiceState == STATE_STARTING || mServiceState == STATE_RUNNING)
 			return;
 		if (mServiceState == STATE_STOPPING)
@@ -245,9 +278,19 @@ public class RemoteDialerService extends Service
 		// Если сотовая связь доступна, добавляем локальное устройство в список
 		if (isPhoneAvailable())
 		{
-			RemoteDevice device = new RemoteDevice().InitLocal(mDeviceName);
+			System.out.println("start phone");
+			// --------- FIXME: убрать. Это временный хак пока не поддержан device uid
+			for (int i = 0; i < mDevices.size(); ++i)
+				if (mDevices.get(i).mType == RemoteDevice.DEVICE_TYPE_THIS)
+				{
+					mDevices.remove(i);
+					break;
+				}
+			// -----------------------------------------------------------------------
+			RemoteDevice device = new RemoteDevice().InitLocal(mDeviceName);	
         	if (!mDevices.contains(device))
         	{
+    			System.out.println("start self");
         		mDevices.add(device);
         		reportNewDevices();
         	}
@@ -256,6 +299,7 @@ public class RemoteDialerService extends Service
 		// Проверяем доступность сети Wi-Fi
 		if (isWifiNetworkReady())
 		{		
+			System.out.println("start wifi");
 			// Если сеть доступна - будем слушать сервисы RemoteDialer в локальной сети
 	        WifiManager wifi = (android.net.wifi.WifiManager) getSystemService(android.content.Context.WIFI_SERVICE);
 	        mLock = wifi.createMulticastLock("mylockthereturn");
@@ -263,28 +307,22 @@ public class RemoteDialerService extends Service
 	        mLock.acquire();
 	        try {
 	            mJmdns = JmDNS.create();
+	            // TODO: делать list, дабы определить уже зарегистрированные сервисы
+	            ServiceInfo services[] = mJmdns.list(RDIALER_SERVICE_TYPE, 6000);
+	            for (int i = 0; i < services.length; ++i)
+	            	addDevice(services[i]);
 	            mJmdns.addServiceListener(RDIALER_SERVICE_TYPE, mListener = new ServiceListener() {
 	
 	                @Override
 	                public void serviceResolved(ServiceEvent ev) {
 	                	System.out.println("Service resolved: " + ev.getInfo().getName() + " port:" + ev.getInfo().getPort());
-	                	RemoteDevice device = new RemoteDevice().Init(ev.getInfo());
-	                	if (!mDevices.contains(device))
-	                	{
-	                		mDevices.add(device);
-	                		reportNewDevices();
-	                	}
+	                	addDevice(ev.getInfo());
 	                }
 	
 	                @Override
 	                public void serviceRemoved(ServiceEvent ev) {
 	                	System.out.println("Service removed: " + ev.getName());
-	                	RemoteDevice device = new RemoteDevice().Init(ev.getInfo());
-	                	if (mDevices.contains(device))
-	                	{
-	                		mDevices.remove(device);
-	                		reportNewDevices();
-	                	}
+	                	removeDevice(ev.getInfo());
 	                }
 	
 	                @Override
@@ -310,9 +348,10 @@ public class RemoteDialerService extends Service
 	            return;
 	        }
 		}
-		else if (!isPhoneAvailable()) // if (isWifiNetworkReady()) 
-			// Если недоступен Wi-Fi и сотовая сеть - Давай, до свидания!
+		else //if (!isPhoneAvailable())   
+			// Если недоступен Wi-Fi - Давай, до свидания!
 			mServiceState = STATE_STOPPED;
+		System.out.println("start exit " + mServiceState);
 	}
 	
     private boolean dialNumber(String number)

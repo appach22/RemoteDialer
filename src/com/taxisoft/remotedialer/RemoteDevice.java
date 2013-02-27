@@ -18,6 +18,7 @@ class RemoteDevice extends Object implements Parcelable
 	public String mHost;
 	public int mPort;
 	public String mModel;
+	// TODO: добавить mID, который будет сохраняться в настройках при первом старте
 
 	public RemoteDevice()
 	{
@@ -34,7 +35,7 @@ class RemoteDevice extends Object implements Parcelable
             return true;
         if (obj == null || obj.getClass() != this.getClass())
             return false;
-        return mName.equalsIgnoreCase(((RemoteDevice)obj).mName);
+       	return (mName.equalsIgnoreCase(((RemoteDevice)obj).mName));
 	}
 	
 	public RemoteDevice Init(ServiceInfo info)

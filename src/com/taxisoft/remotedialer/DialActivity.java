@@ -213,7 +213,7 @@ public class DialActivity extends Activity
 	@TextChange(R.id.edtNumber)
 	void onNumberChange(TextView tv, CharSequence text) 
 	{
-		System.out.println(PhoneNumberUtils.formatNumber(edtNumber.getText().toString()));
+		//System.out.println(PhoneNumberUtils.formatNumber(edtNumber.getText().toString()));
 	}
     
 }
