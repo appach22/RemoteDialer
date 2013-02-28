@@ -15,9 +15,13 @@ public class BootReceiver extends BroadcastReceiver
 	@Override
 	public void onReceive(Context context, Intent intent)
 	{
+		System.out.println("Remote dialer service autostart");
 		if (context.getSharedPreferences("RDialerPrefs", Context.MODE_PRIVATE).getBoolean("autostart", true))
-			context.startService(new Intent(context, RemoteDialerService.class)
-			.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_START));	
+		{
+			System.out.println("Starting service...");
+			context.startService(new Intent(context, RemoteDialerService_.class)
+			.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_START));
+		}
 	}
 
 }
