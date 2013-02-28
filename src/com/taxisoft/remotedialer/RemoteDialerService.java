@@ -38,7 +38,8 @@ public class RemoteDialerService extends Service
 
 	public final static String DEFAULT_DEVICE_NAME = android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL;
 	//private final static String LOG_TAG = "RemoteDialerService";
-    private final static String RDIALER_SERVICE_TYPE = "_rdialer._tcp.local.";
+    private final static String RDIALER_SERVICE_TYPE_WITH_DOMAIN = "_rdialer._tcp.local.";
+    private final static String RDIALER_SERVICE_TYPE = "_rdialer._tcp";
     //private final static String RDIALER_SERVICE_DESCRIPTION = "Remote Dialer service";
 	protected final static String DEVICES_EXTRA = "devices";
 	protected final static String DEVICES_BROADCAST = "com.taxisoft.remotedialer.devices";
@@ -61,7 +62,8 @@ public class RemoteDialerService extends Service
 	private final static int STATE_RUNNING 	= 4;
 	private final static int STATE_STOPPING = 8;
 
-    private JmDNS mJmdns = null;
+    private JmDNS mJmDNSService = null;
+    private JmDNS mJmDNSListener = null;
     private MulticastLock mLock;
     private ServiceListener mListener = null;
     private ServiceInfo mServiceInfo;
@@ -208,6 +210,7 @@ public class RemoteDialerService extends Service
 	{
     	RemoteDevice device = new RemoteDevice().Init(info);
     	// Если список уже содержит это устройство - обновляем его в списке (на случай, если порт поменялся)
+    	// FIXME: почему-то НЕ РАБОТАЕТ!!!
     	if (mDevices.contains(device))
     		mDevices.remove(device);
 		mDevices.add(device);
@@ -246,10 +249,22 @@ public class RemoteDialerService extends Service
 		if (thisDevice != null)
 			mDevices.add(thisDevice);
 		reportNewDevices();
-		if (mListener != null)
-			mJmdns.removeServiceListener(RDIALER_SERVICE_TYPE, mListener);
-		if (mJmdns != null)
-			mJmdns.unregisterAllServices();
+		try
+		{
+			if (mListener != null && mJmDNSListener != null)
+			{
+				mJmDNSListener.removeServiceListener(mServiceInfo.getType(), mListener);
+				mJmDNSListener.close();
+			}
+			if (mJmDNSService != null)
+			{
+				mJmDNSService.unregisterAllServices();
+				mJmDNSService.close();
+			}
+		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
 		if (mLock != null)
 			mLock.release();
 		mServiceState = STATE_STOPPED;
@@ -306,12 +321,35 @@ public class RemoteDialerService extends Service
 	        mLock.setReferenceCounted(true);
 	        mLock.acquire();
 	        try {
-	            mJmdns = JmDNS.create();
+	            mJmDNSService = JmDNS.create("Service");
+	            mJmDNSListener = JmDNS.create("Listener");
+	            
+	    		// Если сотовая связь доступна, позиционируем себя как сервис
+	            ServerSocket socket = new ServerSocket(0);
+	            mServiceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE_WITH_DOMAIN, mDeviceName, socket.getLocalPort(), DEFAULT_DEVICE_NAME);
+	    		if (isPhoneAvailable())
+	    		{
+		            System.out.println("Removing old service...");
+		            mJmDNSService.registerService(mServiceInfo);
+		            mJmDNSService.unregisterService(mServiceInfo);
+		            try
+					{
+						Thread.sleep(5000);
+					} catch (InterruptedException e)
+					{
+						e.printStackTrace();
+					}
+		            System.out.println("Registering new service...");
+		            mJmDNSService.registerService(mServiceInfo);
+		            // Запускаем фоновую обработку запросов
+		            processRequest(socket);
+	    		}
+	    		
 	            // TODO: делать list, дабы определить уже зарегистрированные сервисы
-	            ServiceInfo services[] = mJmdns.list(RDIALER_SERVICE_TYPE, 6000);
+	            ServiceInfo services[] = mJmDNSService.list(mServiceInfo.getType(), 6000);
 	            for (int i = 0; i < services.length; ++i)
 	            	addDevice(services[i]);
-	            mJmdns.addServiceListener(RDIALER_SERVICE_TYPE, mListener = new ServiceListener() {
+	            mJmDNSListener.addServiceListener(mServiceInfo.getType(), mListener = new ServiceListener() {
 	
 	                @Override
 	                public void serviceResolved(ServiceEvent ev) {
@@ -327,19 +365,11 @@ public class RemoteDialerService extends Service
 	
 	                @Override
 	                public void serviceAdded(ServiceEvent event) {
+	                	System.out.println("Service added: " + event.getInfo().getName() + " port:" + event.getInfo().getPort());
 	                    // Required to force serviceResolved to be called again (after the first search)
-	                    mJmdns.requestServiceInfo(event.getType(), event.getName(), 1);
+	                	mJmDNSListener.requestServiceInfo(event.getType(), event.getName(), 1);
 	                }
 	            });
-	    		// Если сотовая связь доступна, позиционируем себя как сервис
-	    		if (isPhoneAvailable())
-	    		{
-		            ServerSocket socket = new ServerSocket(0);
-		            mServiceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE, mDeviceName, socket.getLocalPort(), DEFAULT_DEVICE_NAME);
-		            mJmdns.registerService(mServiceInfo);
-		            // Запускаем фоновую обработку запросов
-		            processRequest(socket);
-	    		}
 	            System.out.println("Service started. Name=" + mDeviceName);
 	            mServiceState = STATE_RUNNING;
 	        } catch (IOException e) {
