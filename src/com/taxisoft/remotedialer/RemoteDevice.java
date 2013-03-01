@@ -18,6 +18,7 @@ class RemoteDevice extends Object implements Parcelable
 	public String mHost;
 	public int mPort;
 	public String mModel;
+	private String mUid;
 	// TODO: добавить mID, который будет сохраняться в настройках при первом старте
 
 	public RemoteDevice()
@@ -26,6 +27,7 @@ class RemoteDevice extends Object implements Parcelable
 		mType = DEVICE_TYPE_NONE;
 		mHost = "";
 		mPort = 0;
+		mUid = "";
 	}
 	
 	@Override
@@ -35,23 +37,26 @@ class RemoteDevice extends Object implements Parcelable
             return true;
         if (obj == null || obj.getClass() != this.getClass())
             return false;
-       	return (mName.equalsIgnoreCase(((RemoteDevice)obj).mName));
+       	return (mUid.equalsIgnoreCase(((RemoteDevice)obj).mUid));
 	}
 	
 	public RemoteDevice Init(ServiceInfo info)
 	{
-		mName = info.getName();
+		mName = info.getName().split("___")[0];
 		mType = DEVICE_TYPE_LOCAL_NETWORK;
 		mHost = info.getHostAddresses()[0];
 		mPort = info.getPort();
-		mModel = info.getNiceTextString();
+		String id[] = info.getNiceTextString().split("___");
+		mModel = id[0];
+		mUid = id[1];
 		return this;
 	}
 
-	public RemoteDevice InitLocal(String deviceName)
+	public RemoteDevice InitLocal(String deviceName, String uid)
 	{
 		mName = deviceName;
 		mType = DEVICE_TYPE_THIS;
+		mUid = uid;
 		return this;
 	}
 

@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Random;
 
 import javax.jmdns.JmDNS;
 import javax.jmdns.ServiceEvent;
@@ -23,6 +24,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences.Editor;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -38,8 +40,7 @@ public class RemoteDialerService extends Service
 
 	public final static String DEFAULT_DEVICE_NAME = android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL;
 	//private final static String LOG_TAG = "RemoteDialerService";
-    private final static String RDIALER_SERVICE_TYPE_WITH_DOMAIN = "_rdialer._tcp.local.";
-    private final static String RDIALER_SERVICE_TYPE = "_rdialer._tcp";
+    private final static String RDIALER_SERVICE_TYPE = "_rdialer._tcp.local.";
     //private final static String RDIALER_SERVICE_DESCRIPTION = "Remote Dialer service";
 	protected final static String DEVICES_EXTRA = "devices";
 	protected final static String DEVICES_BROADCAST = "com.taxisoft.remotedialer.devices";
@@ -66,12 +67,12 @@ public class RemoteDialerService extends Service
     private JmDNS mJmDNSListener = null;
     private MulticastLock mLock;
     private ServiceListener mListener = null;
-    private ServiceInfo mServiceInfo;
 	private String mDeviceName;
 	private String mDefaultDeviceName;
 	private ArrayList<RemoteDevice> mDevices;
 	private static int mServiceState = STATE_STOPPED;
 	private ConnectionStateReceiver mConnStateReceiver;	
+	private String mThisDeviceUid;
 
     class CommandReceiveTask extends AsyncTask<ServerSocket, Void, Void>
     {
@@ -153,7 +154,7 @@ public class RemoteDialerService extends Service
 	{
 		return null;
 	}
-
+	
 	private boolean isWifiNetworkReady()
 	{
         //WifiManager wifi = (android.net.wifi.WifiManager) getSystemService(android.content.Context.WIFI_SERVICE);
@@ -199,7 +200,6 @@ public class RemoteDialerService extends Service
 				Thread.sleep(100);
 		} catch (InterruptedException e)
 		{
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 			return 0;
 		}
@@ -208,11 +208,24 @@ public class RemoteDialerService extends Service
 	
 	private void addDevice(ServiceInfo info)
 	{
-    	RemoteDevice device = new RemoteDevice().Init(info);
+		addDevice(new RemoteDevice().Init(info));
+	}
+	
+	private void addDevice(RemoteDevice device)
+	{
     	// Если список уже содержит это устройство - обновляем его в списке (на случай, если порт поменялся)
-    	// FIXME: почему-то НЕ РАБОТАЕТ!!!
-    	if (mDevices.contains(device))
-    		mDevices.remove(device);
+		int index = mDevices.indexOf(device);
+		if (index != -1)
+		{
+			RemoteDevice existingDevice = mDevices.get(index);
+			// Пресекаем попытки затереть локальное устройство не локальным
+			if (existingDevice.mType == RemoteDevice.DEVICE_TYPE_THIS &&
+				device.mType != RemoteDevice.DEVICE_TYPE_THIS)
+				return;
+			// Удаляем уже существующее устройство
+    		mDevices.remove(existingDevice);
+		}
+		// Добавляем новое и сообщаем GUI, что надо обновить список
 		mDevices.add(device);
 		reportNewDevices();
 	}
@@ -253,7 +266,7 @@ public class RemoteDialerService extends Service
 		{
 			if (mListener != null && mJmDNSListener != null)
 			{
-				mJmDNSListener.removeServiceListener(mServiceInfo.getType(), mListener);
+				mJmDNSListener.removeServiceListener(RDIALER_SERVICE_TYPE, mListener);
 				mJmDNSListener.close();
 			}
 			if (mJmDNSService != null)
@@ -292,24 +305,7 @@ public class RemoteDialerService extends Service
 	    
 		// Если сотовая связь доступна, добавляем локальное устройство в список
 		if (isPhoneAvailable())
-		{
-			System.out.println("start phone");
-			// --------- FIXME: убрать. Это временный хак пока не поддержан device uid
-			for (int i = 0; i < mDevices.size(); ++i)
-				if (mDevices.get(i).mType == RemoteDevice.DEVICE_TYPE_THIS)
-				{
-					mDevices.remove(i);
-					break;
-				}
-			// -----------------------------------------------------------------------
-			RemoteDevice device = new RemoteDevice().InitLocal(mDeviceName);	
-        	if (!mDevices.contains(device))
-        	{
-    			System.out.println("start self");
-        		mDevices.add(device);
-        		reportNewDevices();
-        	}
-		}
+			addDevice(new RemoteDevice().InitLocal(mDeviceName, mThisDeviceUid));	
 		
 		// Проверяем доступность сети Wi-Fi
 		if (isWifiNetworkReady())
@@ -325,31 +321,51 @@ public class RemoteDialerService extends Service
 	            mJmDNSListener = JmDNS.create("Listener");
 	            
 	    		// Если сотовая связь доступна, позиционируем себя как сервис
-	            ServerSocket socket = new ServerSocket(0);
-	            mServiceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE_WITH_DOMAIN, mDeviceName, socket.getLocalPort(), DEFAULT_DEVICE_NAME);
+	            
 	    		if (isPhoneAvailable())
 	    		{
+		            // Для начала зарегистрируем и удалим сервис со старыми параметрами 
+		            // (это приходится делать для того, чтобы при перерегистрации с тем же именем
+		            // клиенты получили новые параметры сервиса
+		            int oldPort = getSharedPreferences("RDialerPrefs", MODE_PRIVATE).getInt("port", 0);
+		            
+		            ServerSocket socket = new ServerSocket(0);
+		            ServiceInfo serviceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE, 
+		            							      			 mDeviceName + "___" + oldPort,
+		            							      			 socket.getLocalPort(),
+		            							      			 DEFAULT_DEVICE_NAME + "___" + mThisDeviceUid);
+		            
 		            System.out.println("Removing old service...");
-		            mJmDNSService.registerService(mServiceInfo);
-		            mJmDNSService.unregisterService(mServiceInfo);
+		            mJmDNSService.registerService(serviceInfo);
+		            mJmDNSService.unregisterService(serviceInfo);
 		            try
 					{
-						Thread.sleep(5000);
+						Thread.sleep(1000);
 					} catch (InterruptedException e)
 					{
 						e.printStackTrace();
 					}
+		            // Теперь зарегистрируем сервис снова
 		            System.out.println("Registering new service...");
-		            mJmDNSService.registerService(mServiceInfo);
+		            socket = new ServerSocket(0);
+		            int newPort = socket.getLocalPort();
+		            serviceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE, 
+		            							      mDeviceName + "___" + newPort,
+		            							      newPort,
+		            							      DEFAULT_DEVICE_NAME + "___" + mThisDeviceUid);
+		            mJmDNSService.registerService(serviceInfo);
+		    		Editor e = getSharedPreferences("RDialerPrefs", MODE_PRIVATE).edit();
+		    		e.putInt("port", newPort);
+		    		e.commit();
 		            // Запускаем фоновую обработку запросов
 		            processRequest(socket);
 	    		}
 	    		
-	            // TODO: делать list, дабы определить уже зарегистрированные сервисы
-	            ServiceInfo services[] = mJmDNSService.list(mServiceInfo.getType(), 6000);
+	            // Делаем list, дабы определить уже зарегистрированные сервисы
+	            ServiceInfo services[] = mJmDNSService.list(RDIALER_SERVICE_TYPE, 6000);
 	            for (int i = 0; i < services.length; ++i)
 	            	addDevice(services[i]);
-	            mJmDNSListener.addServiceListener(mServiceInfo.getType(), mListener = new ServiceListener() {
+	            mJmDNSListener.addServiceListener(RDIALER_SERVICE_TYPE, mListener = new ServiceListener() {
 	
 	                @Override
 	                public void serviceResolved(ServiceEvent ev) {
@@ -406,6 +422,17 @@ public class RemoteDialerService extends Service
 	    //intentFilter.addAction(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
 	    intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
 	    registerReceiver(mConnStateReceiver, intentFilter);
+	    
+	    // Получаем uid данного устройства
+	    mThisDeviceUid = getSharedPreferences("RDialerPrefs", MODE_PRIVATE).getString("uid", "");
+	    if (mThisDeviceUid.equals(""))
+	    {
+	    	// Если это первый запуск - то создаем этот uid
+	    	mThisDeviceUid = Long.toString(new Random().nextLong());
+    		Editor e = getSharedPreferences("RDialerPrefs", MODE_PRIVATE).edit();
+    		e.putString("uid", mThisDeviceUid);
+    		e.commit();
+	    }
 	    
 	    System.out.println("onCreate()");
 	}	
