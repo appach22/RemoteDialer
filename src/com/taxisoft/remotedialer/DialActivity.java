@@ -4,20 +4,25 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.ref.Reference;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.googlecode.androidannotations.annotations.Background;
 import com.googlecode.androidannotations.annotations.Click;
 import com.googlecode.androidannotations.annotations.EActivity;
 import com.googlecode.androidannotations.annotations.TextChange;
+import com.googlecode.androidannotations.annotations.UiThread;
 import com.googlecode.androidannotations.annotations.ViewById;
 
 import android.net.Uri;
 import android.os.Bundle;
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -126,6 +131,7 @@ public class DialActivity extends Activity
 		if (device.mType == RemoteDevice.DEVICE_TYPE_THIS)
 			dialLocally(edtNumber.getText().toString());
 		else
+			// TODO: увести в фон
 			sendRequest(device, "DialNumber " + edtNumber.getText());
 	}
 	
@@ -186,10 +192,26 @@ public class DialActivity extends Activity
         spnDevices.setPrompt(getResources().getString(R.string.select_device));
     }
     
-    private String sendRequest(RemoteDevice device, String request)
+    @UiThread
+    protected void showProgress(String message, ProgressDialog dialog[])
+    {
+    	dialog[0] = (ProgressDialog.show(this, "", message, true));
+    }
+    
+    @UiThread
+    protected void showToast(String message, int duration)
+    {
+    	Toast.makeText(this, message, duration).show();    
+    }
+    
+    // Пока request только один: DialNumber, можем себе позволить показывать прогресс прямо в sendRequest
+    @Background
+    protected void sendRequest(RemoteDevice device, String request)
     {
         Socket clientSocket;
         String reply = "";
+        ProgressDialog dialog[] = new ProgressDialog[1];
+        showProgress(getResources().getString(R.string.dialing_number), dialog);
 		try
 		{
 			clientSocket = new Socket(device.mHost, device.mPort);
@@ -198,16 +220,24 @@ public class DialActivity extends Activity
 	        outToServer.writeBytes(request + "\n");
 	        reply = inFromServer.readLine();
 	        clientSocket.close();
+			dialog[0].dismiss();
+	    	if (reply.equalsIgnoreCase("Accepted"))
+				showToast(getResources().getString(R.string.dial_success), Toast.LENGTH_SHORT);
+	    	else
+				showToast(getResources().getString(R.string.dial_error), Toast.LENGTH_LONG);
 		} catch (UnknownHostException e)
 		{
+			dialog[0].dismiss();
 			e.printStackTrace();
-			Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
+			//Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
+			showToast(getResources().getString(R.string.device_connection_error), Toast.LENGTH_LONG);
 		} catch (IOException e)
 		{
+			dialog[0].dismiss();
 			e.printStackTrace();
-			Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
+			//Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
+			showToast(getResources().getString(R.string.device_connection_error), Toast.LENGTH_LONG);
 		}
-    	return reply;
     }
 
 	@TextChange(R.id.edtNumber)

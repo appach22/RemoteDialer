@@ -13,5 +13,8 @@
     <string name="autostart">Автозапуск</string>
     <string name="this_device">(Это устройство)</string>
     <string name="select_device">Выберите устройство</string>
-
+    <string name="dialing_number">Набираем номер#8230</string>
+    <string name="dial_success">Номер набран успешно</string>
+    <string name="dial_error">Ошибка набора номера</string>
+    <string name="device_connection_error">Ошибка связи с устройством</string>
 </resources>
