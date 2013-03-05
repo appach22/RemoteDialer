@@ -53,15 +53,18 @@ public class DialActivity extends Activity
     @ViewById
     Spinner spnDevices;
     
-    BroadcastReceiver m_devicesReceiver;
+    BroadcastReceiver mDevicesReceiver;
+    
+    ArrayList<RemoteDevice> mDevices;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_dial);
+		mDevices = new ArrayList<RemoteDevice>();
 	    // создаем BroadcastReceiver
-		m_devicesReceiver = new BroadcastReceiver() 
+		mDevicesReceiver = new BroadcastReceiver() 
 		{
 			public void onReceive(Context context, Intent intent) 
 			{
@@ -71,14 +74,13 @@ public class DialActivity extends Activity
 	    // создаем фильтр для BroadcastReceiver
 	    IntentFilter intFilt = new IntentFilter(RemoteDialerService.DEVICES_BROADCAST);
 	    // регистрируем BroadcastReceiver
-	    registerReceiver(m_devicesReceiver, intFilt);
+	    registerReceiver(mDevicesReceiver, intFilt);
 	}
 
 	@Override
 	protected void onStart()
 	{
 		super.onStart();
-    	System.out.println("onStart");
     	PendingIntent pi = createPendingResult(RemoteDialerService.CMD_GET_DEVICES, new Intent(), 0);
     	// Получаем список уже найденных устройств
 		startService(new Intent(this, RemoteDialerService_.class)
@@ -106,7 +108,7 @@ public class DialActivity extends Activity
 	    // Handle item selection
 	    switch (item.getItemId()) {
 	        case R.id.menu_settings:
-	            startActivity(new Intent(this, SettingsActivity_.class));
+	            startActivity(new Intent(this, SettingsActivity_.class).putExtra(RemoteDialerService.DEVICES_EXTRA, mDevices));
 	            return true;
 	        default:
 	            return super.onOptionsItemSelected(item);
@@ -172,22 +174,22 @@ public class DialActivity extends Activity
     protected void onDestroy() {
       super.onDestroy();
       // выключаем BroadcastReceiver
-      unregisterReceiver(m_devicesReceiver);
+      unregisterReceiver(mDevicesReceiver);
     }
 
     private void updateDevicesFromIntent(Intent intent)
     {
-		ArrayList<RemoteDevice> devices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
-		for (int i = 0; i < devices.size(); ++i)
+		mDevices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
+		for (int i = 0; i < mDevices.size(); ++i)
 		{
-			RemoteDevice device = devices.get(i);
+			RemoteDevice device = mDevices.get(i);
 			if (device.mType == RemoteDevice.DEVICE_TYPE_THIS)
 			{
 				device.mModel = getResources().getString(R.string.this_device);
-				devices.set(i, device);
+				mDevices.set(i, device);
 			}
 		}
-        DeviceAdapter devicesAdapter = new DeviceAdapter(this, R.layout.device_list_item, devices);
+        DeviceAdapter devicesAdapter = new DeviceAdapter(this, R.layout.device_list_item, mDevices);
         spnDevices.setAdapter(devicesAdapter);
         spnDevices.setPrompt(getResources().getString(R.string.select_device));
     }

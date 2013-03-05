@@ -25,10 +25,25 @@
         <EditText
             android:id="@+id/edtName"
             android:layout_width="fill_parent"
-            android:layout_height="wrap_content" >
+            android:layout_height="wrap_content"
+            android:singleLine="true" >
 
             <requestFocus />
         </EditText>
+
+        <TextView
+            android:id="@+id/tvDefaultDevice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/default_device"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <AutoCompleteTextView
+            android:id="@+id/atvDefaultDevice"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:singleLine="true" />
 
         <CheckBox
             android:id="@+id/cbAutostart"

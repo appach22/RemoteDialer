@@ -10,10 +10,11 @@
     <string name="modify_number">Изменить номер</string>
     <string name="title_activity_settings">Настройки</string>
     <string name="device_name">Имя устройства</string>
+    <string name="default_device">Устройство по умолчанию</string>
     <string name="autostart">Автозапуск</string>
     <string name="this_device">(Это устройство)</string>
     <string name="select_device">Выберите устройство</string>
-    <string name="dialing_number">Набираем номер#8230</string>
+    <string name="dialing_number">Набираем номер...</string>
     <string name="dial_success">Номер набран успешно</string>
     <string name="dial_error">Ошибка набора номера</string>
     <string name="device_connection_error">Ошибка связи с устройством</string>

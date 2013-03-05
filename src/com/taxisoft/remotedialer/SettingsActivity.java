@@ -1,5 +1,6 @@
 package com.taxisoft.remotedialer;
 
+import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -9,9 +10,16 @@ import com.googlecode.androidannotations.annotations.ViewById;
 
 import android.os.Bundle;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
+import android.view.View;
+import android.view.View.OnFocusChangeListener;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -23,16 +31,32 @@ public class SettingsActivity extends Activity
 	EditText edtName;
 	@ViewById
 	CheckBox cbAutostart;
+	@ViewById
+	AutoCompleteTextView atvDefaultDevice;
 	
 	SharedPreferences mSettings;
 	Timer mDeviceNameAutosaveTimer;
 	String mPreviousName;
+
+    BroadcastReceiver mDevicesReceiver;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_settings);
+	    // создаем BroadcastReceiver
+		mDevicesReceiver = new BroadcastReceiver() 
+		{
+			public void onReceive(Context context, Intent intent) 
+			{
+				updateDevicesFromIntent(intent);
+			}
+	    };
+	    // создаем фильтр для BroadcastReceiver
+	    IntentFilter intFilt = new IntentFilter(RemoteDialerService.DEVICES_BROADCAST);
+	    // регистрируем BroadcastReceiver
+	    registerReceiver(mDevicesReceiver, intFilt);
 	}
 
 	@Override
@@ -44,8 +68,41 @@ public class SettingsActivity extends Activity
     	edtName.setText(mPreviousName);
     	cbAutostart.setChecked(mSettings.getBoolean("autostart", true));
     	mDeviceNameAutosaveTimer = null;
+    	updateDevicesFromIntent(getIntent());
+	    //ArrayAdapter<String> adapter = new ArrayAdapter<String>(context, android.R.layout.simple_dropdown_item_1line, allStreets.split("\\|"));
 	}	
 	
+    @Override
+    protected void onDestroy() {
+      super.onDestroy();
+      // выключаем BroadcastReceiver
+      unregisterReceiver(mDevicesReceiver);
+    }
+
+    private void updateDevicesFromIntent(Intent intent)
+    {
+		ArrayList<RemoteDevice> devices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
+		for (int i = 0; i < devices.size(); ++i)
+		{
+			RemoteDevice device = devices.get(i);
+			if (device.mType == RemoteDevice.DEVICE_TYPE_THIS)
+			{
+				device.mModel = getResources().getString(R.string.this_device);
+				devices.set(i, device);
+			}
+		}
+        DeviceAdapter devicesAdapter = new DeviceAdapter(this, R.layout.device_list_item, devices);
+        atvDefaultDevice.setAdapter(devicesAdapter);
+	    atvDefaultDevice.setThreshold(1);
+        atvDefaultDevice.setOnFocusChangeListener(new OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if (hasFocus)
+                	atvDefaultDevice.showDropDown();
+            }
+        });
+    }
+    
 	@TextChange(R.id.edtName)
 	void onDeviceNameChange(TextView tv, CharSequence text) 
 	{

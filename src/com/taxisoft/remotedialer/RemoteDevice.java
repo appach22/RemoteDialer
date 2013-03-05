@@ -101,6 +101,6 @@ class RemoteDevice extends Object implements Parcelable
 	public String toString()
 	{
 		//System.out.println("toString " + m_name);
-		return mName + " " + mModel + " (" + mPort + ")";
+		return mName;// + " " + mModel + " (" + mPort + ")";
 	}
 }
