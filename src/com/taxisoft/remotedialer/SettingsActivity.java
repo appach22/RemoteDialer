@@ -18,14 +18,19 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.view.View;
 import android.view.View.OnFocusChangeListener;
+import android.view.inputmethod.InputMethodManager;
+import android.view.KeyEvent;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.TextView.OnEditorActionListener;
 
 @EActivity(R.layout.activity_settings)
-public class SettingsActivity extends Activity
+public class SettingsActivity extends Activity implements OnEditorActionListener
 {
 	@ViewById
 	EditText edtName;
@@ -36,7 +41,12 @@ public class SettingsActivity extends Activity
 	
 	SharedPreferences mSettings;
 	Timer mDeviceNameAutosaveTimer;
+	Timer mDefaultDeviceAutosaveTimer;
 	String mPreviousName;
+	RemoteDevice mSavedDefaultDevice;
+	RemoteDevice mSelectedDefaultDevice;
+	ArrayList<RemoteDevice> mDevices;
+	boolean mIsFirstTime = true;
 
     BroadcastReceiver mDevicesReceiver;
 
@@ -63,15 +73,36 @@ public class SettingsActivity extends Activity
 	protected void onStart()
 	{
 		super.onStart();
+    	updateDevicesFromIntent(getIntent());
+    	mIsFirstTime = true;
     	mSettings = getSharedPreferences("RDialerPrefs", MODE_PRIVATE);
     	mPreviousName = mSettings.getString("device_name", RemoteDialerService.DEFAULT_DEVICE_NAME);
     	edtName.setText(mPreviousName);
     	cbAutostart.setChecked(mSettings.getBoolean("autostart", true));
+    	mSavedDefaultDevice = new RemoteDevice().
+    			InitLocal(mSettings.getString("default_device_name", ""), mSettings.getString("default_device_uid", ""));
+    	atvDefaultDevice.setText(mSavedDefaultDevice.mName);
     	mDeviceNameAutosaveTimer = null;
-    	updateDevicesFromIntent(getIntent());
-	    //ArrayAdapter<String> adapter = new ArrayAdapter<String>(context, android.R.layout.simple_dropdown_item_1line, allStreets.split("\\|"));
+	    edtName.setOnEditorActionListener(this);
+	    atvDefaultDevice.setOnEditorActionListener(this);
 	}	
 	
+    @Override
+    public boolean onEditorAction(TextView v, int keyCode, KeyEvent event) 
+    {
+    	// Почему-то на ENTER возвращает KEYCODE_CALL
+//    	System.out.println(keyCode);
+//        if (/*event != null && event.getAction() == KeyEvent.ACTION_DOWN && */keyCode == KeyEvent.KEYCODE_ENTER)
+//        {           
+//        	System.out.println("hide");
+//        	// hide virtual keyboard
+//        	InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+//            imm.hideSoftInputFromWindow(v.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
+//            return true;
+//        }
+        return false;
+    }
+    
     @Override
     protected void onDestroy() {
       super.onDestroy();
@@ -79,19 +110,20 @@ public class SettingsActivity extends Activity
       unregisterReceiver(mDevicesReceiver);
     }
 
-    private void updateDevicesFromIntent(Intent intent)
+    @SuppressWarnings("unchecked")
+	private void updateDevicesFromIntent(Intent intent)
     {
-		ArrayList<RemoteDevice> devices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
-		for (int i = 0; i < devices.size(); ++i)
+		mDevices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
+		for (int i = 0; i < mDevices.size(); ++i)
 		{
-			RemoteDevice device = devices.get(i);
+			RemoteDevice device = mDevices.get(i);
 			if (device.mType == RemoteDevice.DEVICE_TYPE_THIS)
 			{
 				device.mModel = getResources().getString(R.string.this_device);
-				devices.set(i, device);
+				mDevices.set(i, device);
 			}
 		}
-        DeviceAdapter devicesAdapter = new DeviceAdapter(this, R.layout.device_list_item, devices);
+        DeviceAdapter devicesAdapter = new DeviceAdapter(this, R.layout.device_list_item, (ArrayList<RemoteDevice>)mDevices.clone());
         atvDefaultDevice.setAdapter(devicesAdapter);
 	    atvDefaultDevice.setThreshold(1);
         atvDefaultDevice.setOnFocusChangeListener(new OnFocusChangeListener() {
@@ -101,6 +133,19 @@ public class SettingsActivity extends Activity
                 	atvDefaultDevice.showDropDown();
             }
         });
+//        atvDefaultDevice.setOnItemClickListener(new OnItemClickListener() { 
+//            @Override
+//            public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
+//            	System.out.println("Item click " + position);
+//            	RemoteDevice device = (RemoteDevice) adapterView.getItemAtPosition(position);
+//        		Editor e = mSettings.edit();
+//        		e.putString("default_device_name", device.mName);
+//        		e.putString("default_device_uid", device.mUid);
+//        		e.commit();
+//        		System.out.println("Saved def: " + device.mName + " " + device.mUid);
+//            }
+//        });
+        //atvDefaultDevice.setOnEditorActionListener(l)
     }
     
 	@TextChange(R.id.edtName)
@@ -109,7 +154,6 @@ public class SettingsActivity extends Activity
 		System.out.println(mPreviousName + " " + text);
 		if (!text.toString().equals(mPreviousName))
 		{
-			System.out.println("restarting");
 			mPreviousName = text.toString();
     		Editor e = mSettings.edit();
     		e.putString("device_name", text.toString());
@@ -130,4 +174,39 @@ public class SettingsActivity extends Activity
 		}
 	}
 	
+	@TextChange(R.id.atvDefaultDevice)
+	void onDefaultDeviceNameChange(TextView tv, CharSequence text) 
+	{
+		if (mIsFirstTime)
+		{
+			mIsFirstTime = false;
+			return;
+		}
+		//System.out.println("Text changed: " + text);
+    	//System.out.println(mDevices);
+		RemoteDevice device;
+    	if (text.toString().equals(""))
+    	{
+    		//System.out.println("empty");
+    		// Чтобы при пустом тексте отображались все устройства, надо наследоваться от atv
+    		atvDefaultDevice.showDropDown();
+	    	device = new RemoteDevice().InitLocal("", "");
+    	}
+    	else
+    	{
+	    	device = new RemoteDevice().InitLocal(text.toString(), "");
+	    	// Пробуем найти по имени указанное устройство среди уже существующих
+	    	if (mDevices != null)
+	    	{
+	    		int pos = mDevices.indexOf(device);
+	    		if (pos != -1)
+	    			device = mDevices.get(pos);
+	    	}
+    	}
+		Editor e = mSettings.edit();
+		e.putString("default_device_name", device.mName);
+		e.putString("default_device_uid", device.mUid);
+		e.commit();
+		//System.out.println("Saved def: " + device.mName + " " + device.mUid);
+	}
 }

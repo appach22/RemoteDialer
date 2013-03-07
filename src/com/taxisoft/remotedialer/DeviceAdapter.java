@@ -75,20 +75,21 @@ public class DeviceAdapter extends ArrayAdapter<RemoteDevice>
         }
         @Override
         protected FilterResults performFiltering(CharSequence constraint) {
-            if(constraint != null) {
-            	mCurrentDevices.clear();
-                for (RemoteDevice device : mAllDevices) {
-                    if(device.mName.toLowerCase().contains(constraint.toString().toLowerCase())){
-                    	mCurrentDevices.add(device);
-                    }
-                }
-                FilterResults filterResults = new FilterResults();
-                filterResults.values = mCurrentDevices;
-                filterResults.count = mCurrentDevices.size();
-                return filterResults;
-            } else {
-                return new FilterResults();
+        	mCurrentDevices.clear();
+            for (RemoteDevice device : mAllDevices) {
+            	// Эта хитрость не работает, т.к. все равно AutoCompleteTextView не принимает threshold 0
+            	if(constraint != null)
+            	{
+            		if(device.mName.toLowerCase().contains(constraint.toString().toLowerCase()))
+            			mCurrentDevices.add(device);
+            	}
+            	else
+            		mCurrentDevices.add(device);
             }
+            FilterResults filterResults = new FilterResults();
+            filterResults.values = mCurrentDevices;
+            filterResults.count = mCurrentDevices.size();
+            return filterResults;
         }
         
 		@Override

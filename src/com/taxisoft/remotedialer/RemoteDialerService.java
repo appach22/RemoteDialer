@@ -242,7 +242,6 @@ public class RemoteDialerService extends Service
 	
 	private void stopRemoteDialerService()
 	{
-		System.out.println("stop enter " + mServiceState);
 		if (mServiceState == STATE_STOPPING || mServiceState == STATE_STOPPED)
 			return;
 		if (mServiceState == STATE_STARTING)
@@ -281,13 +280,10 @@ public class RemoteDialerService extends Service
 		if (mLock != null)
 			mLock.release();
 		mServiceState = STATE_STOPPED;
-        System.out.println("Service stopped");
-		System.out.println("stop exit " + mServiceState);
 	}
 	
 	private void startRemoteDialerService()
 	{
-		System.out.println("start enter " + mServiceState);
 		if (mServiceState == STATE_STARTING || mServiceState == STATE_RUNNING)
 			return;
 		if (mServiceState == STATE_STOPPING)
@@ -381,7 +377,6 @@ public class RemoteDialerService extends Service
 	
 	                @Override
 	                public void serviceAdded(ServiceEvent event) {
-	                	System.out.println("Service added: " + event.getInfo().getName() + " port:" + event.getInfo().getPort());
 	                    // Required to force serviceResolved to be called again (after the first search)
 	                	mJmDNSListener.requestServiceInfo(event.getType(), event.getName(), 1);
 	                }
@@ -397,7 +392,6 @@ public class RemoteDialerService extends Service
 		else //if (!isPhoneAvailable())   
 			// Если недоступен Wi-Fi - Давай, до свидания!
 			mServiceState = STATE_STOPPED;
-		System.out.println("start exit " + mServiceState);
 	}
 	
     private boolean dialNumber(String number)
@@ -433,8 +427,6 @@ public class RemoteDialerService extends Service
     		e.putString("uid", mThisDeviceUid);
     		e.commit();
 	    }
-	    
-	    System.out.println("onCreate()");
 	}	
 	
 	@Background
@@ -513,7 +505,6 @@ public class RemoteDialerService extends Service
 	
 	public int onStartCommand(Intent intent, int flags, int startId) 
 	{
-		System.out.println("onStartCommand");
 		if (intent == null)
 			return START_STICKY;
 		processCommand(intent);

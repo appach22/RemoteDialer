@@ -27,6 +27,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.telephony.PhoneNumberUtils;
 import android.text.InputFilter.LengthFilter;
 import android.view.Menu;
@@ -148,6 +149,7 @@ public class DialActivity extends Activity
     {
     	super.onResume();
     	System.out.println("onResume");
+    	setDefaultDeviceActive();
     }	
 
     @Override
@@ -158,7 +160,10 @@ public class DialActivity extends Activity
     	{
     		if (requestCode == RemoteDialerService.CMD_GET_DEVICES)
     		{
+    			// Получаем список доступных устройств
     			updateDevicesFromIntent(data);
+    	        // Делаем устройство по умолчанию активным в списке
+    			setDefaultDeviceActive();
     		}
     	}
     	if (resultCode == RemoteDialerService.CMD_RES_FAILURE)
@@ -177,6 +182,16 @@ public class DialActivity extends Activity
       unregisterReceiver(mDevicesReceiver);
     }
 
+    private void setDefaultDeviceActive()
+    {
+        SharedPreferences settings = getSharedPreferences("RDialerPrefs", MODE_PRIVATE);
+        RemoteDevice device = new RemoteDevice().
+    			InitLocal(settings.getString("default_device_name", ""), settings.getString("default_device_uid", ""));
+		int pos = mDevices.indexOf(device);
+		if (pos != -1)
+			spnDevices.setSelection(pos);
+    }
+    
     private void updateDevicesFromIntent(Intent intent)
     {
 		mDevices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
