@@ -1,7 +1,6 @@
 package com.taxisoft.remotedialer;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 
 import android.content.Context;
 import android.view.LayoutInflater;

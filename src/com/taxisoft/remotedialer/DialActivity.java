@@ -4,12 +4,9 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.ref.Reference;
 import java.net.Socket;
-import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 
 import com.googlecode.androidannotations.annotations.Background;
 import com.googlecode.androidannotations.annotations.Click;
@@ -28,11 +25,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.telephony.PhoneNumberUtils;
-import android.text.InputFilter.LengthFilter;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
@@ -43,7 +37,7 @@ import android.widget.Toast;
 public class DialActivity extends Activity
 {
 
-	private final static int CMD_CODE	= 1;
+	//private final static int CMD_CODE	= 1;
 
     @ViewById
     EditText edtNumber;
@@ -82,10 +76,11 @@ public class DialActivity extends Activity
 	protected void onStart()
 	{
 		super.onStart();
-    	PendingIntent pi = createPendingResult(RemoteDialerService.CMD_GET_DEVICES, new Intent(), 0);
+		System.out.println("onStart");
+    	PendingIntent pi = createPendingResult(RemoteDialerService.CMD_GET_FOUND_DEVICES, new Intent(), 0);
     	// Получаем список уже найденных устройств
 		startService(new Intent(this, RemoteDialerService_.class)
-		.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_GET_DEVICES)
+		.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_GET_FOUND_DEVICES)
 		.putExtra(RemoteDialerService.CMD_PENDING_EXTRA, pi)
 		);	
     	
@@ -149,16 +144,23 @@ public class DialActivity extends Activity
     {
     	super.onResume();
     	System.out.println("onResume");
-    	setDefaultDeviceActive();
+//    	PendingIntent pi = createPendingResult(RemoteDialerService.CMD_GET_FOUND_DEVICES, new Intent(), 0);
+//    	// Получаем список уже найденных устройств
+//		startService(new Intent(this, RemoteDialerService_.class)
+//		.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_GET_FOUND_DEVICES)
+//		.putExtra(RemoteDialerService.CMD_PENDING_EXTRA, pi)
+//		);	
     }	
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) 
     {
     	super.onActivityResult(requestCode, resultCode, data);
+    	System.out.println("onActivityResult(): " + requestCode + " " + resultCode);
     	if (resultCode == RemoteDialerService.CMD_RES_SUCCESS)
     	{
-    		if (requestCode == RemoteDialerService.CMD_GET_DEVICES)
+    		if (requestCode == RemoteDialerService.CMD_GET_DEVICES ||
+    			requestCode == RemoteDialerService.CMD_GET_FOUND_DEVICES)
     		{
     			// Получаем список доступных устройств
     			updateDevicesFromIntent(data);
@@ -195,6 +197,7 @@ public class DialActivity extends Activity
     private void updateDevicesFromIntent(Intent intent)
     {
 		mDevices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
+    	System.out.println("updateDevicesFromIntent(): " + mDevices);
 		for (int i = 0; i < mDevices.size(); ++i)
 		{
 			RemoteDevice device = mDevices.get(i);

@@ -39,7 +39,7 @@
             </intent-filter>
         </activity>
 
-        <service android:name="com.taxisoft.remotedialer.RemoteDialerService_" >
+        <service android:name="com.taxisoft.remotedialer.RemoteDialerService_" android:process=":rdialer_service">
         </service>
 
         <activity
