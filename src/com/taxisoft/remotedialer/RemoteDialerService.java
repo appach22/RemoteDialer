@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -31,6 +33,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences.Editor;
 import android.net.ConnectivityManager;
+import android.net.DhcpInfo;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
@@ -48,6 +51,7 @@ public class RemoteDialerService extends Service
 	public final static String DEFAULT_DEVICE_NAME = android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL;
 	//private final static String LOG_TAG = "RemoteDialerService";
     private final static String RDIALER_SERVICE_TYPE = "_rdialer._tcp.local.";
+    private final static int RDIALER_SERVICE_PORT = 52836;
     //private final static String RDIALER_SERVICE_DESCRIPTION = "Remote Dialer service";
 	protected final static String DEVICES_EXTRA = "devices";
 	protected final static String DEVICES_BROADCAST = "com.taxisoft.remotedialer.devices";
@@ -83,6 +87,8 @@ public class RemoteDialerService extends Service
 	private ConnectionStateReceiver mConnStateReceiver;	
 	private String mThisDeviceUid;
 	private Timer mListTimer;
+	private Timer mBroadcastTimer = null;
+	private InetAddress mBroadcastAddr = null;
 
 	public RemoteDialerService() 
 	{
@@ -144,6 +150,7 @@ public class RemoteDialerService extends Service
 				    		{
 				    			//stopRemoteDialerService();
 				    			startRemoteDialerService();
+				    			startBroadcasting();
 				    			return;
 				    		}
 				    	}
@@ -164,6 +171,62 @@ public class RemoteDialerService extends Service
 		return null;
 	}
 	
+	private void startBroadcasting()
+	{
+        WifiManager wifi = (android.net.wifi.WifiManager) getSystemService(android.content.Context.WIFI_SERVICE);
+        DhcpInfo dhcp = wifi.getDhcpInfo();
+        if (dhcp != null)
+        {
+        	int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
+        	//int broadcast = dhcp.ipAddress;
+	        byte[] byteaddr = new byte[] { (byte) (broadcast & 0xff), (byte) (broadcast >> 8 & 0xff),
+	                  (byte) (broadcast >> 16 & 0xff), (byte) (broadcast >> 24 & 0xff) };
+			try
+			{
+				mBroadcastAddr = InetAddress.getByAddress(byteaddr);
+	        	if (mBroadcastTimer != null)
+	        		mBroadcastTimer.cancel();
+	        	mBroadcastTimer = new Timer();
+	        	mBroadcastTimer.schedule(new TimerTask(){
+	    			@Override
+	    			public void run()
+	    			{
+						try
+						{
+		    				String request = "GetDeviceInfoyyy";
+		    				String reply = "";
+		    				byte[] sendData = request.getBytes();
+		    			    byte[] receiveData = new byte[1024];
+		    				System.out.println("Broadcasting to " + mBroadcastAddr); 
+		    				DatagramSocket broadcastSocket = new DatagramSocket();
+		    				broadcastSocket.setBroadcast(true);
+		    				DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, mBroadcastAddr, RDIALER_SERVICE_PORT);
+		    				broadcastSocket.send(sendPacket);
+//		    				DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+//		    				broadcastSocket.receive(receivePacket);
+//		    				reply = new String(receivePacket.getData(), 0, receivePacket.getLength());
+//		    				System.out.println("Got reply from " + receivePacket.getAddress() + ": " + reply);
+//		    		        broadcastSocket.close();
+//		    		        if (reply.contains("DeviceInfo"))
+//		    		        {
+//		    		        	//System.out.println("Found device: " + reply);
+//		    		        }
+						} catch (IOException e)
+						{
+							e.printStackTrace();
+						}
+	    			}
+	    		}, 0, 60 * 1000);
+			} catch (UnknownHostException e)
+			{
+				e.printStackTrace();
+			} catch (IOException e)
+			{
+				e.printStackTrace();
+			}
+        }
+    }
+
 	private boolean isWifiNetworkReady()
 	{
         //WifiManager wifi = (android.net.wifi.WifiManager) getSystemService(android.content.Context.WIFI_SERVICE);
@@ -353,7 +416,7 @@ public class RemoteDialerService extends Service
 			            // клиенты получили новые параметры сервиса
 			            int oldPort = getSharedPreferences("RDialerPrefs", MODE_PRIVATE).getInt("port", 0);
 			            
-			            ServerSocket socket = new ServerSocket(0);
+			            ServerSocket socket = new ServerSocket(oldPort);
 			            ServiceInfo serviceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE, 
 			            							      			 mDeviceName + "___" + oldPort,
 			            							      			 socket.getLocalPort(),
@@ -372,7 +435,7 @@ public class RemoteDialerService extends Service
 						}
 			            // Теперь зарегистрируем сервис снова
 			            System.out.println("Registering new service...");
-			            socket = new ServerSocket(0);
+			            socket = new ServerSocket(0/*RDIALER_SERVICE_PORT*/);
 			            int newPort = socket.getLocalPort();
 			            serviceInfo = ServiceInfo.create(RDIALER_SERVICE_TYPE, 
 			            							      mDeviceName + "___" + newPort,
@@ -382,6 +445,8 @@ public class RemoteDialerService extends Service
 			    		Editor e = getSharedPreferences("RDialerPrefs", MODE_PRIVATE).edit();
 			    		e.putInt("port", newPort);
 			    		e.commit();
+			            // Запускаем фоновую обработку поисковых broadcast запросов
+			            processBroadcastRequest();
 			            // Запускаем фоновую обработку запросов
 			            processRequest(socket);
 		    		}
@@ -485,6 +550,7 @@ public class RemoteDialerService extends Service
 	@Background
 	protected void processRequest(ServerSocket socket)
 	{
+		System.out.println("Listening for TCP");
 		try
 		{
 			String clientRequest;
@@ -513,6 +579,48 @@ public class RemoteDialerService extends Service
 		}
 	}
 	
+	@Background
+	protected void processBroadcastRequest()
+	{
+		System.out.println("Listening for UDP");
+		try
+		{
+			String clientRequest;
+	        String serverReply = "Unknown request\n";
+            byte[] receiveData = new byte[1024];
+            byte[] sendData = new byte[1024];
+            DatagramSocket socket = new DatagramSocket(RDIALER_SERVICE_PORT);
+            socket.setBroadcast(true);
+			while(true)
+			{
+				DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+				socket.receive(receivePacket);
+			    clientRequest = new String(receivePacket.getData(), 0, receivePacket.getLength());
+			    System.out.println("Received UDP: " + clientRequest);
+			    if (mBroadcastAddr != null)
+			    {
+				    if (clientRequest.startsWith("GetDeviceInfo"))
+				    {
+				    	serverReply = "DeviceInfo|" + mDeviceName + "|" + mThisDeviceUid + "|" + DEFAULT_DEVICE_NAME + "|";
+					    sendData = serverReply.getBytes();
+					    DatagramSocket broadcastSocket = new DatagramSocket();
+	    				broadcastSocket.setBroadcast(true);
+	    				DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, mBroadcastAddr, RDIALER_SERVICE_PORT);
+	    				broadcastSocket.send(sendPacket);
+				    }
+//	                InetAddress IPAddress = receivePacket.getAddress();
+//	                int port = receivePacket.getPort();
+//	                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, port);
+//	                socket.send(sendPacket);
+			    }
+			}
+			
+		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+	}
+
 	protected void processCommand(Intent intent)
 	{
 		try
