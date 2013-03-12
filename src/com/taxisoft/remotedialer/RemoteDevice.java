@@ -1,5 +1,7 @@
 package com.taxisoft.remotedialer;
 
+import java.net.InetAddress;
+
 import javax.jmdns.ServiceInfo;
 
 import com.taxisoft.remotedialer.RemoteDevice;
@@ -60,6 +62,18 @@ class RemoteDevice extends Object implements Parcelable
 		mName = deviceName;
 		mType = DEVICE_TYPE_THIS;
 		mUid = uid;
+		return this;
+	}
+
+	public RemoteDevice InitFromBroadcast(String infoFromPacket, InetAddress deviceIP, int devicePort)
+	{
+    	String[] infos = infoFromPacket.split("\\|");
+    	mName = infos[1];
+    	mType = DEVICE_TYPE_LOCAL_NETWORK;
+    	mUid = infos[2];
+    	mModel = infos[3];
+    	mHost = deviceIP.getHostAddress();
+    	mPort = devicePort;
 		return this;
 	}
 

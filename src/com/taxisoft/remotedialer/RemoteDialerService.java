@@ -23,6 +23,7 @@ import javax.jmdns.ServiceListener;
 import com.googlecode.androidannotations.annotations.Background;
 import com.googlecode.androidannotations.annotations.EService;
 
+import android.app.AlarmManager;
 import android.app.IntentService;
 import android.app.PendingIntent;
 import android.app.PendingIntent.CanceledException;
@@ -51,7 +52,7 @@ public class RemoteDialerService extends Service
 	public final static String DEFAULT_DEVICE_NAME = android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL;
 	//private final static String LOG_TAG = "RemoteDialerService";
     private final static String RDIALER_SERVICE_TYPE = "_rdialer._tcp.local.";
-    private final static int RDIALER_SERVICE_PORT = 52836;
+    public final static int RDIALER_SERVICE_PORT = 52836;
     //private final static String RDIALER_SERVICE_DESCRIPTION = "Remote Dialer service";
 	protected final static String DEVICES_EXTRA = "devices";
 	protected final static String DEVICES_BROADCAST = "com.taxisoft.remotedialer.devices";
@@ -171,60 +172,42 @@ public class RemoteDialerService extends Service
 		return null;
 	}
 	
+	// Запускает периодическую отправку UDP-броадкаст пакетов с информацией о себе
 	private void startBroadcasting()
 	{
+		// Получаем броадкаст адрес у WiFi-менеджера
         WifiManager wifi = (android.net.wifi.WifiManager) getSystemService(android.content.Context.WIFI_SERVICE);
         DhcpInfo dhcp = wifi.getDhcpInfo();
-        if (dhcp != null)
-        {
-        	int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
-        	//int broadcast = dhcp.ipAddress;
-	        byte[] byteaddr = new byte[] { (byte) (broadcast & 0xff), (byte) (broadcast >> 8 & 0xff),
-	                  (byte) (broadcast >> 16 & 0xff), (byte) (broadcast >> 24 & 0xff) };
-			try
-			{
-				mBroadcastAddr = InetAddress.getByAddress(byteaddr);
-	        	if (mBroadcastTimer != null)
-	        		mBroadcastTimer.cancel();
-	        	mBroadcastTimer = new Timer();
-	        	mBroadcastTimer.schedule(new TimerTask(){
-	    			@Override
-	    			public void run()
-	    			{
-						try
-						{
-		    				String request = "GetDeviceInfoyyy";
-		    				String reply = "";
-		    				byte[] sendData = request.getBytes();
-		    			    byte[] receiveData = new byte[1024];
-		    				System.out.println("Broadcasting to " + mBroadcastAddr); 
-		    				DatagramSocket broadcastSocket = new DatagramSocket();
-		    				broadcastSocket.setBroadcast(true);
-		    				DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, mBroadcastAddr, RDIALER_SERVICE_PORT);
-		    				broadcastSocket.send(sendPacket);
-//		    				DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-//		    				broadcastSocket.receive(receivePacket);
-//		    				reply = new String(receivePacket.getData(), 0, receivePacket.getLength());
-//		    				System.out.println("Got reply from " + receivePacket.getAddress() + ": " + reply);
-//		    		        broadcastSocket.close();
-//		    		        if (reply.contains("DeviceInfo"))
-//		    		        {
-//		    		        	//System.out.println("Found device: " + reply);
-//		    		        }
-						} catch (IOException e)
-						{
-							e.printStackTrace();
-						}
-	    			}
-	    		}, 0, 60 * 1000);
-			} catch (UnknownHostException e)
-			{
-				e.printStackTrace();
-			} catch (IOException e)
-			{
-				e.printStackTrace();
-			}
-        }
+        // Если DHCP информацию получить не удалось - выходим
+        if (dhcp == null)
+        	return;
+
+        // Получаем сервис Alarm Manager'а
+        AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        // Если не получили - выходим
+        if (am == null)
+        	return;
+        
+    	int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
+        byte[] byteaddr = new byte[] { (byte) (broadcast & 0xff), (byte) (broadcast >> 8 & 0xff),
+                  (byte) (broadcast >> 16 & 0xff), (byte) (broadcast >> 24 & 0xff) };
+        try
+		{
+        	// Подготавливаем intent с информацией о девайсе
+			mBroadcastAddr = InetAddress.getByAddress(byteaddr);
+			Intent intent = new Intent(this, UdpAlarmReceiver.class);
+			intent.putExtra("broadcast_ip", mBroadcastAddr.getHostAddress());
+			intent.putExtra("device_name", mDeviceName);
+			intent.putExtra("device_uid", mThisDeviceUid);
+			intent.putExtra("device_desc", DEFAULT_DEVICE_NAME);
+			PendingIntent pi = PendingIntent.getBroadcast(this, 0, intent, 0);
+			// Запускаем Alarm с периодичностью в минуту начиная с текущего момента времени 
+			am.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), 1000 * 60, pi);			
+			
+		} catch (UnknownHostException e)
+		{
+			e.printStackTrace();
+		}
     }
 
 	private boolean isWifiNetworkReady()
@@ -446,7 +429,7 @@ public class RemoteDialerService extends Service
 			    		e.putInt("port", newPort);
 			    		e.commit();
 			            // Запускаем фоновую обработку поисковых broadcast запросов
-			            processBroadcastRequest();
+			            processBroadcastPacket();
 			            // Запускаем фоновую обработку запросов
 			            processRequest(socket);
 		    		}
@@ -580,38 +563,25 @@ public class RemoteDialerService extends Service
 	}
 	
 	@Background
-	protected void processBroadcastRequest()
+	protected void processBroadcastPacket()
 	{
 		System.out.println("Listening for UDP");
 		try
 		{
-			String clientRequest;
-	        String serverReply = "Unknown request\n";
+			String infoFromPacket;
             byte[] receiveData = new byte[1024];
-            byte[] sendData = new byte[1024];
             DatagramSocket socket = new DatagramSocket(RDIALER_SERVICE_PORT);
-            socket.setBroadcast(true);
+            //socket.setBroadcast(true);
 			while(true)
 			{
 				DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
 				socket.receive(receivePacket);
-			    clientRequest = new String(receivePacket.getData(), 0, receivePacket.getLength());
-			    System.out.println("Received UDP: " + clientRequest);
-			    if (mBroadcastAddr != null)
+				infoFromPacket = new String(receivePacket.getData(), 0, receivePacket.getLength());
+			    System.out.println("Received UDP: " + infoFromPacket);
+			    if (infoFromPacket.startsWith("DeviceInfo"))
 			    {
-				    if (clientRequest.startsWith("GetDeviceInfo"))
-				    {
-				    	serverReply = "DeviceInfo|" + mDeviceName + "|" + mThisDeviceUid + "|" + DEFAULT_DEVICE_NAME + "|";
-					    sendData = serverReply.getBytes();
-					    DatagramSocket broadcastSocket = new DatagramSocket();
-	    				broadcastSocket.setBroadcast(true);
-	    				DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, mBroadcastAddr, RDIALER_SERVICE_PORT);
-	    				broadcastSocket.send(sendPacket);
-				    }
-//	                InetAddress IPAddress = receivePacket.getAddress();
-//	                int port = receivePacket.getPort();
-//	                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, port);
-//	                socket.send(sendPacket);
+			    	RemoteDevice device = new RemoteDevice().InitFromBroadcast(infoFromPacket, receivePacket.getAddress(), RDIALER_SERVICE_PORT);
+			    	addDevice(device);
 			    }
 			}
 			
