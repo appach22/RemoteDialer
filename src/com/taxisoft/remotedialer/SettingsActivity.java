@@ -60,7 +60,7 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
 			}
 	    };
 	    // создаем фильтр для BroadcastReceiver
-	    IntentFilter intFilt = new IntentFilter(RemoteDialerService.DEVICES_BROADCAST);
+	    IntentFilter intFilt = new IntentFilter(RemoteDialerDevices.DEVICES_BROADCAST);
 	    // регистрируем BroadcastReceiver
 	    registerReceiver(mDevicesReceiver, intFilt);
 	}
@@ -72,7 +72,7 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
     	updateDevicesFromIntent(getIntent());
     	mIsFirstTime = true;
     	mSettings = getSharedPreferences("RDialerPrefs", MODE_PRIVATE);
-    	mPreviousName = mSettings.getString("device_name", RemoteDialerService.DEFAULT_DEVICE_NAME);
+    	mPreviousName = mSettings.getString("device_name", RemoteDialerDevices.DEFAULT_DEVICE_NAME);
     	edtName.setText(mPreviousName);
     	cbAutostart.setChecked(mSettings.getBoolean("autostart", true));
     	mSavedDefaultDevice = new RemoteDevice().
@@ -109,7 +109,7 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
     @SuppressWarnings("unchecked")
 	private void updateDevicesFromIntent(Intent intent)
     {
-		mDevices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
+		mDevices = intent.getParcelableArrayListExtra(RemoteDialerDevices.DEVICES_EXTRA);
 		for (int i = 0; i < mDevices.size(); ++i)
 		{
 			RemoteDevice device = mDevices.get(i);

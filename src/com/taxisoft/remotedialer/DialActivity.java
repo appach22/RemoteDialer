@@ -67,7 +67,7 @@ public class DialActivity extends Activity
 			}
 	    };
 	    // создаем фильтр для BroadcastReceiver
-	    IntentFilter intFilt = new IntentFilter(RemoteDialerService.DEVICES_BROADCAST);
+	    IntentFilter intFilt = new IntentFilter(RemoteDialerDevices.DEVICES_BROADCAST);
 	    // регистрируем BroadcastReceiver
 	    registerReceiver(mDevicesReceiver, intFilt);
 	}
@@ -104,7 +104,7 @@ public class DialActivity extends Activity
 	    // Handle item selection
 	    switch (item.getItemId()) {
 	        case R.id.menu_settings:
-	            startActivity(new Intent(this, SettingsActivity_.class).putExtra(RemoteDialerService.DEVICES_EXTRA, mDevices));
+	            startActivity(new Intent(this, SettingsActivity_.class).putExtra(RemoteDialerDevices.DEVICES_EXTRA, mDevices));
 	            return true;
 	        default:
 	            return super.onOptionsItemSelected(item);
@@ -196,7 +196,7 @@ public class DialActivity extends Activity
     
     private void updateDevicesFromIntent(Intent intent)
     {
-		mDevices = intent.getParcelableArrayListExtra(RemoteDialerService.DEVICES_EXTRA);
+		mDevices = intent.getParcelableArrayListExtra(RemoteDialerDevices.DEVICES_EXTRA);
     	System.out.println("updateDevicesFromIntent(): " + mDevices);
 		for (int i = 0; i < mDevices.size(); ++i)
 		{
