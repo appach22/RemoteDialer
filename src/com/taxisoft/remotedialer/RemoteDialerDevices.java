@@ -52,6 +52,20 @@ public class RemoteDialerDevices
 	    
 		
 	}
+	
+	public void updateThisDeviceName(String newName)
+	{
+		for (int i = 0; i < mDevices.size(); ++i)
+		{
+			RemoteDevice device = mDevices.get(i);
+			if (device.mType == RemoteDevice.DEVICE_TYPE_THIS && device.mName.equals(mThisDeviceName))
+			{
+				mThisDeviceName = newName;
+				device.mName = mThisDeviceName;
+			}
+		}
+		reportNewDevices();
+	}
 
 	public void addDevice(ServiceInfo info)
 	{
@@ -60,7 +74,7 @@ public class RemoteDialerDevices
 	
 	public void addDevice(RemoteDevice device)
 	{
-    	// Если список уже содержит это устройство - обновляем его в списке (на случай, если порт поменялся)
+    	// Если список уже содержит это устройство - обновляем его в списке (на случай, если порт или имя поменялись)
 		int index = mDevices.indexOf(device);
 		if (index != -1)
 		{

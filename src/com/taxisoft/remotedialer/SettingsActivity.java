@@ -161,10 +161,13 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
 			mDeviceNameAutosaveTimer.schedule(new TimerTask() {
 	            @Override
 	            public void run() {
-	            	//runOnUiThread(new Runnable() {public void run(){
-	            		startService(restartIntent
-	        			.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_RESTART));	
-	            	//}});
+	            	// Отправляем новое имя напрямую сервису, т.к. через SharedPreferences не передать:
+	            	// их значения не синхронизируются с другим процессом
+            		startService(restartIntent
+        			.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_UPDATE_THIS_DEVICE_NAME)
+        			.putExtra(RemoteDialerService.CMD_PARAM_EXTRA, mPreviousName));	
+            		startService(restartIntent
+        			.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_RESTART));	
 	            }
 	    	}, 10000);
 		}

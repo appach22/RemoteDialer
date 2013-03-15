@@ -21,12 +21,10 @@ public class UdpAlarmReceiver extends BroadcastReceiver
 	@Override
 	public void onReceive(Context context, final Intent intent)
 	{
-		System.out.println("onReceive");
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         final PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "udp_broadcast");
         // Осуществляем блокировку
         wl.acquire();
-		System.out.println("onReceive 1");
 
         Runnable r = new Runnable(){
         	@Override
@@ -34,7 +32,6 @@ public class UdpAlarmReceiver extends BroadcastReceiver
         	{
         		try
         		{
-        			System.out.println("onReceive 2");
 	    			InetAddress broadcastAddr = InetAddress.getByName(intent.getStringExtra("broadcast_ip"));
 	    			String info = "DeviceInfo|" + 
 	    						  intent.getStringExtra("device_name") + "|" +
@@ -57,7 +54,6 @@ public class UdpAlarmReceiver extends BroadcastReceiver
         };
         Thread t = new Thread(r);
         t.start();
-		System.out.println("onReceive 3");
 	}
 
 }

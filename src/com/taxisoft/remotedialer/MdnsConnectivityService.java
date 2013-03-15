@@ -16,18 +16,17 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.MulticastLock;
 
-public class MdnsService extends ServiceFinder
+public class MdnsConnectivityService extends ConnectivityService
 {
     private final static String RDIALER_SERVICE_TYPE = "_rdialer._tcp.local.";
     
     private JmDNS mJmDNS = null;
     private MulticastLock mLock;
     private ServiceListener mListener = null;
-	private RemoteDialerService mParentService;
 
-	public MdnsService(RemoteDialerService parentService)
+	public MdnsConnectivityService(RemoteDialerService parentService)
 	{
-		mParentService = parentService;
+		super(parentService);
 	}
 
 	@Override
@@ -145,9 +144,10 @@ public class MdnsService extends ServiceFinder
 			e.printStackTrace();
 		}
 		mJmDNS = null;
-		if (mLock != null && mLock.isHeld())
+		if (mLock != null)
 		{
-			mLock.release();
+			if (mLock.isHeld())
+				mLock.release();
 			mLock = null;
 		}
 	}

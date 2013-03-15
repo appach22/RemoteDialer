@@ -8,6 +8,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 
+import com.googlecode.androidannotations.annotations.AfterViews;
 import com.googlecode.androidannotations.annotations.Background;
 import com.googlecode.androidannotations.annotations.Click;
 import com.googlecode.androidannotations.annotations.EActivity;
@@ -71,7 +72,7 @@ public class DialActivity extends Activity
 	    // регистрируем BroadcastReceiver
 	    registerReceiver(mDevicesReceiver, intFilt);
 	}
-
+	
 	@Override
 	protected void onStart()
 	{
@@ -156,7 +157,7 @@ public class DialActivity extends Activity
     protected void onActivityResult(int requestCode, int resultCode, Intent data) 
     {
     	super.onActivityResult(requestCode, resultCode, data);
-    	System.out.println("onActivityResult(): " + requestCode + " " + resultCode);
+    	//System.out.println("onActivityResult(): " + requestCode + " " + resultCode);
     	if (resultCode == RemoteDialerService.CMD_RES_SUCCESS)
     	{
     		if (requestCode == RemoteDialerService.CMD_GET_DEVICES ||
@@ -170,7 +171,8 @@ public class DialActivity extends Activity
     	}
     	if (resultCode == RemoteDialerService.CMD_RES_FAILURE)
     	{
-    		if (requestCode == RemoteDialerService.CMD_GET_DEVICES)
+    		if (requestCode == RemoteDialerService.CMD_GET_DEVICES || 
+    			requestCode == RemoteDialerService.CMD_GET_FOUND_DEVICES)
     			Toast.makeText(this, "Error getting device list", Toast.LENGTH_LONG).show();
     		else if (requestCode == RemoteDialerService.CMD_DIAL_NUMBER)
     			Toast.makeText(this, "Error dialing number", Toast.LENGTH_LONG).show();
@@ -197,7 +199,7 @@ public class DialActivity extends Activity
     private void updateDevicesFromIntent(Intent intent)
     {
 		mDevices = intent.getParcelableArrayListExtra(RemoteDialerDevices.DEVICES_EXTRA);
-    	System.out.println("updateDevicesFromIntent(): " + mDevices);
+    	//System.out.println("updateDevicesFromIntent(): " + mDevices);
 		for (int i = 0; i < mDevices.size(); ++i)
 		{
 			RemoteDevice device = mDevices.get(i);
