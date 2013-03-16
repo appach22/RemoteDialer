@@ -329,14 +329,14 @@ public class RemoteDialerService extends Service
 				if (pi != null)
 				{
 			    	startRemoteDialerService();
-					Intent clientIntent = new Intent().putExtra(RemoteDialerDevices.DEVICES_EXTRA, mDevices.getDevices());
+					Intent clientIntent = new Intent().putParcelableArrayListExtra(RemoteDialerDevices.DEVICES_EXTRA, mDevices);
 					pi.send(this, CMD_RES_SUCCESS, clientIntent);
 				}
 				break;
 			case CMD_GET_FOUND_DEVICES:
 				if (pi != null)
 				{
-					Intent clientIntent = new Intent().putExtra(RemoteDialerDevices.DEVICES_EXTRA, mDevices.getDevices());
+					Intent clientIntent = new Intent().putParcelableArrayListExtra(RemoteDialerDevices.DEVICES_EXTRA, mDevices);
 					pi.send(this, CMD_RES_SUCCESS, clientIntent);
 				}
 				break;

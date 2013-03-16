@@ -1,6 +1,5 @@
 package com.taxisoft.remotedialer;
 
-import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -41,7 +40,7 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
 	String mPreviousName;
 	RemoteDevice mSavedDefaultDevice;
 	RemoteDevice mSelectedDefaultDevice;
-	ArrayList<RemoteDevice> mDevices;
+	RemoteDialerDevices mDevices;
 	boolean mIsFirstTime = true;
 
     BroadcastReceiver mDevicesReceiver;
@@ -106,10 +105,9 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
       unregisterReceiver(mDevicesReceiver);
     }
 
-    @SuppressWarnings("unchecked")
 	private void updateDevicesFromIntent(Intent intent)
     {
-		mDevices = intent.getParcelableArrayListExtra(RemoteDialerDevices.DEVICES_EXTRA);
+		mDevices = intent.getParcelableExtra(RemoteDialerDevices.DEVICES_EXTRA);
 		for (int i = 0; i < mDevices.size(); ++i)
 		{
 			RemoteDevice device = mDevices.get(i);
@@ -119,7 +117,7 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
 				mDevices.set(i, device);
 			}
 		}
-        DeviceAdapter devicesAdapter = new DeviceAdapter(this, R.layout.device_list_item, (ArrayList<RemoteDevice>)mDevices.clone());
+        DeviceAdapter devicesAdapter = new DeviceAdapter(this, R.layout.device_list_item, (RemoteDialerDevices)mDevices.clone());
         atvDefaultDevice.setAdapter(devicesAdapter);
 	    atvDefaultDevice.setThreshold(1);
         atvDefaultDevice.setOnFocusChangeListener(new OnFocusChangeListener() {

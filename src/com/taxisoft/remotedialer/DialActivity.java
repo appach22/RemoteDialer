@@ -49,16 +49,20 @@ public class DialActivity extends Activity
     @ViewById
     Spinner spnDevices;
     
-    BroadcastReceiver mDevicesReceiver;
+    private BroadcastReceiver mDevicesReceiver;
     
-    ArrayList<RemoteDevice> mDevices;
+    private RemoteDialerDevices mDevices;
+    
+    private boolean mWasDefault = false;
+    private RemoteDevice mManuallySelectedDevice = null;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_dial);
-		mDevices = new ArrayList<RemoteDevice>();
+		//mDevices = new RemoteDialerDevices(this);
+		mManuallySelectedDevice = null;
 	    // создаем BroadcastReceiver
 		mDevicesReceiver = new BroadcastReceiver() 
 		{
@@ -105,7 +109,7 @@ public class DialActivity extends Activity
 	    // Handle item selection
 	    switch (item.getItemId()) {
 	        case R.id.menu_settings:
-	            startActivity(new Intent(this, SettingsActivity_.class).putExtra(RemoteDialerDevices.DEVICES_EXTRA, mDevices));
+	            startActivity(new Intent(this, SettingsActivity_.class).putParcelableArrayListExtra(RemoteDialerDevices.DEVICES_EXTRA, mDevices));
 	            return true;
 	        default:
 	            return super.onOptionsItemSelected(item);
@@ -166,7 +170,9 @@ public class DialActivity extends Activity
     			// Получаем список доступных устройств
     			updateDevicesFromIntent(data);
     	        // Делаем устройство по умолчанию активным в списке
-    			setDefaultDeviceActive();
+    			int defaultPos = mDevices.getDefaultDeviceIndex();
+    			if (defaultPos != -1)
+    				spnDevices.setSelection(defaultPos);
     		}
     	}
     	if (resultCode == RemoteDialerService.CMD_RES_FAILURE)
@@ -186,19 +192,11 @@ public class DialActivity extends Activity
       unregisterReceiver(mDevicesReceiver);
     }
 
-    private void setDefaultDeviceActive()
-    {
-        SharedPreferences settings = getSharedPreferences("RDialerPrefs", MODE_PRIVATE);
-        RemoteDevice device = new RemoteDevice().
-    			InitLocal(settings.getString("default_device_name", ""), settings.getString("default_device_uid", ""));
-		int pos = mDevices.indexOf(device);
-		if (pos != -1)
-			spnDevices.setSelection(pos);
-    }
-    
     private void updateDevicesFromIntent(Intent intent)
     {
-		mDevices = intent.getParcelableArrayListExtra(RemoteDialerDevices.DEVICES_EXTRA);
+    	// Устанавливаем новый список в GUI
+    	
+    	mDevices = intent.getParcelableExtra(RemoteDialerDevices.DEVICES_EXTRA);
     	//System.out.println("updateDevicesFromIntent(): " + mDevices);
 		for (int i = 0; i < mDevices.size(); ++i)
 		{
@@ -212,6 +210,63 @@ public class DialActivity extends Activity
         DeviceAdapter devicesAdapter = new DeviceAdapter(this, R.layout.device_list_item, mDevices);
         spnDevices.setAdapter(devicesAdapter);
         spnDevices.setPrompt(getResources().getString(R.string.select_device));
+        
+        // Выбираем текущий элемент (hurja urakka!)       
+        
+        int defaultPos = mDevices.getDefaultDeviceIndex();
+        // Если появилось в списке устройство по умолчанию
+        if (defaultPos != -1)
+        {
+        	// ...(а раньше не было)
+        	if (!mWasDefault)
+        	{
+        		// Выбираем устройство по умолчанию
+        		spnDevices.setSelection(defaultPos);
+        		mWasDefault = true;
+        		return;
+        	}
+        }
+        else
+    		mWasDefault = false;
+        
+        // Если с момента запуска программы пользователь вручную выбирал устройство из списка...
+        if (mManuallySelectedDevice != null)
+        {
+        	int manualPos = mDevices.indexOf(mManuallySelectedDevice);
+            // ...и данное устройство сохранилось в списке
+        	if (manualPos != -1)
+        	{
+        		// Оставляем выбранное пользователем устройство
+        		spnDevices.setSelection(manualPos);
+        		return;
+        	}
+        }
+        
+        // Если пользователь либо ни разу не выбирал устройство, 
+        // либо выбранное им устройство исчезло 
+        // Если в списке присутствует устройство по умолчанию
+        if (defaultPos != -1)
+    	{
+    		// Выбираем устройство по умолчанию
+    		spnDevices.setSelection(defaultPos);
+    		return;
+    	}
+        // Если в списке устр-ва по умолчанию нет - пробуем установить локальное устройство
+        else 
+        {
+        	int localPos = mDevices.getLocalDeviceIndex();
+        	// Если есть локальное устройство
+        	if (localPos != -1)
+        	{
+        		// Выбираем локальное
+        		spnDevices.setSelection(localPos);
+        		return;
+        	}
+        	// Если нет и локального устройства
+        	else
+        		// Просто выбираем первое из списка
+        		spnDevices.setSelection(0);
+        }
     }
     
     @UiThread
