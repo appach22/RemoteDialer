@@ -18,6 +18,8 @@ import com.googlecode.androidannotations.annotations.ViewById;
 
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.app.ProgressDialog;
@@ -55,6 +57,7 @@ public class DialActivity extends Activity
     
     private boolean mWasDefault = false;
     private RemoteDevice mManuallySelectedDevice = null;
+    private ProgressDialog mDialingProgress = null;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState)
@@ -268,11 +271,25 @@ public class DialActivity extends Activity
         		spnDevices.setSelection(0);
         }
     }
+
+    
+    //======================== Dialing GUI stuff ======================================
+    
+    private Handler mHandler = new Handler() {
+        @Override
+            public void handleMessage(Message msg) {
+        	if (mDialingProgress != null)
+        	{
+        		mDialingProgress.dismiss();
+        		mDialingProgress = null;
+        	}
+        }
+    };
     
     @UiThread
-    protected void showProgress(String message, ProgressDialog dialog[])
+    protected void showProgress(String message)
     {
-    	dialog[0] = (ProgressDialog.show(this, "", message, true));
+    	mDialingProgress = ProgressDialog.show(this, "", message, true);
     }
     
     @UiThread
@@ -287,8 +304,7 @@ public class DialActivity extends Activity
     {
         Socket clientSocket;
         String reply = "";
-        ProgressDialog dialog[] = new ProgressDialog[1];
-        showProgress(getResources().getString(R.string.dialing_number), dialog);
+        showProgress(getResources().getString(R.string.dialing_number));
 		try
 		{
 			clientSocket = new Socket(device.mHost, device.mPort);
@@ -297,20 +313,20 @@ public class DialActivity extends Activity
 	        outToServer.writeBytes(request + "\n");
 	        reply = inFromServer.readLine();
 	        clientSocket.close();
-			dialog[0].dismiss();
+	        mHandler.sendEmptyMessage(0);
 	    	if (reply.equalsIgnoreCase("Accepted"))
 				showToast(getResources().getString(R.string.dial_success), Toast.LENGTH_SHORT);
 	    	else
 				showToast(getResources().getString(R.string.dial_error), Toast.LENGTH_LONG);
 		} catch (UnknownHostException e)
 		{
-			dialog[0].dismiss();
+			mHandler.sendEmptyMessage(0);
 			e.printStackTrace();
 			//Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
 			showToast(getResources().getString(R.string.device_connection_error), Toast.LENGTH_LONG);
 		} catch (IOException e)
 		{
-			dialog[0].dismiss();
+			mHandler.sendEmptyMessage(0);
 			e.printStackTrace();
 			//Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
 			showToast(getResources().getString(R.string.device_connection_error), Toast.LENGTH_LONG);
