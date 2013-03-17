@@ -185,7 +185,7 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
     	if (text.toString().equals(""))
     	{
     		//System.out.println("empty");
-    		// Чтобы при пустом тексте отображались все устройства, надо наследоваться от atv
+    		// TODO: Чтобы при пустом тексте отображались все устройства, надо наследоваться от atv
     		atvDefaultDevice.showDropDown();
 	    	device = new RemoteDevice().InitLocal("", "");
     	}
@@ -204,6 +204,11 @@ public class SettingsActivity extends Activity implements OnEditorActionListener
 		e.putString("default_device_name", device.mName);
 		e.putString("default_device_uid", device.mUid);
 		e.commit();
-		//System.out.println("Saved def: " + device.mName + " " + device.mUid);
+    	// Отправляем новое имя напрямую сервису, т.к. через SharedPreferences не передать:
+    	// значения в SharedPreferences не синхронизируются с другим процессом
+		Intent restartIntent = new Intent(this, RemoteDialerService_.class);
+		startService(restartIntent
+		.putExtra(RemoteDialerService.CMD_EXTRA, RemoteDialerService.CMD_UPDATE_DEFAULT_DEVICE_NAME)
+		.putExtra(RemoteDialerService.CMD_PARAM_EXTRA, device.mName + "|" + device.mUid));	
 	}
 }

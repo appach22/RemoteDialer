@@ -186,6 +186,9 @@ public class RemoteDialerService extends Service
 		} catch (IOException e)
 		{
 			e.printStackTrace();
+		} catch (Exception e1)
+		{
+			e1.printStackTrace();
 		}
 		mServiceState = STATE_STOPPED;
 	}
@@ -251,29 +254,35 @@ public class RemoteDialerService extends Service
 	    super.onCreate();
 	    mServiceState = STATE_STOPPED;
 
-	    // Создаем список устройств
-	    mDevices = new RemoteDialerDevices(this);
-	    // Подготавливаем список устройств
-		mDevices.updateFromSettings();
-		// Если сотовая связь доступна, добавляем локальное устройство в список
-		if (isPhoneAvailable())
+		try
 		{
-			System.out.println("Adding local device...");
-			mDevices.addLocal();
+		    // Создаем список устройств
+		    mDevices = new RemoteDialerDevices(this);
+		    // Подготавливаем список устройств
+			mDevices.updateFromSettings();
+			// Если сотовая связь доступна, добавляем локальное устройство в список
+			if (isPhoneAvailable())
+			{
+				System.out.println("Adding local device...");
+				mDevices.addLocal();
+			}
+			
+		    // Создаем сервис MDNS
+		    mMdnsService = new MdnsConnectivityService(this);
+	
+		    // Создаем сервис Broadcast
+		    mBroadcastService = new BroadcastConnectivityService(this);
+	
+		    // Регистрируем слушателя состояния сети wifi (обязательно в отдельном потоке, т.к. network
+	 	    mConnStateReceiver = new ConnectionStateReceiver();
+		    IntentFilter intentFilter = new IntentFilter();
+		    //intentFilter.addAction(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
+		    intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+		    registerReceiver(mConnStateReceiver, intentFilter);   
+		} catch (Exception e)
+		{
+			e.printStackTrace();
 		}
-		
-	    // Создаем сервис MDNS
-	    mMdnsService = new MdnsConnectivityService(this);
-
-	    // Создаем сервис Broadcast
-	    mBroadcastService = new BroadcastConnectivityService(this);
-
-	    // Регистрируем слушателя состояния сети wifi (обязательно в отдельном потоке, т.к. network
- 	    mConnStateReceiver = new ConnectionStateReceiver();
-	    IntentFilter intentFilter = new IntentFilter();
-	    //intentFilter.addAction(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
-	    intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
-	    registerReceiver(mConnStateReceiver, intentFilter);   
 	}	
 	
 	@Background
@@ -352,6 +361,9 @@ public class RemoteDialerService extends Service
 			case CMD_UPDATE_THIS_DEVICE_NAME:
 				mDevices.updateThisDeviceName(intent.getStringExtra(CMD_PARAM_EXTRA));
 				break;	
+			case CMD_UPDATE_DEFAULT_DEVICE_NAME:
+				mDevices.updateDefaultDeviceNameAndUid(intent.getStringExtra(CMD_PARAM_EXTRA));
+				break;	
 			default:
 				if (pi != null)
 					pi.send(CMD_RES_NO_SUCH_CMD);
@@ -359,6 +371,9 @@ public class RemoteDialerService extends Service
 		} catch (CanceledException e)
 		{
 			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (Exception e)
+		{
 			e.printStackTrace();
 		}
 	}

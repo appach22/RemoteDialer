@@ -37,13 +37,8 @@ public class UdpAlarmReceiver extends BroadcastReceiver
 	    						  intent.getStringExtra("device_name") + "|" +
 	    						  intent.getStringExtra("device_uid") + "|" +
 	    						  intent.getStringExtra("device_desc");
-	    			byte[] sendData = info.getBytes();
 	    			System.out.println("Broadcasting to " + broadcastAddr.getHostName()); 
-	    			DatagramSocket broadcastSocket = new DatagramSocket();
-	    			broadcastSocket.setBroadcast(true);
-	    			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, broadcastAddr, RemoteDialerService.RDIALER_SERVICE_PORT);
-	    			broadcastSocket.send(sendPacket);
-	    	        broadcastSocket.close();
+	    			BroadcastConnectivityService.sendDatagram(broadcastAddr, info);
 	    	        wl.release();
 	    		} catch (IOException e)
 	    		{

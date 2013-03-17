@@ -98,13 +98,25 @@ public class MdnsConnectivityService extends ConnectivityService
 		                @Override
 		                public void serviceResolved(ServiceEvent ev) {
 		                	System.out.println("Service resolved: " + ev.getInfo().getName() + " port:" + ev.getInfo().getPort());
-		                	mParentService.getDevices().addDevice(ev.getInfo());
+		                	try
+							{
+								mParentService.getDevices().addDevice(ev.getInfo());
+							} catch (Exception e)
+							{
+								e.printStackTrace();
+							}
 		                }
 		
 		                @Override
 		                public void serviceRemoved(ServiceEvent ev) {
 		                	System.out.println("Service removed: " + ev.getName());
-		                	mParentService.getDevices().removeDevice(ev.getInfo());
+		                	try
+							{
+								mParentService.getDevices().removeDevice(ev.getInfo());
+							} catch (Exception e)
+							{
+								e.printStackTrace();
+							}
 		                }
 		
 		                @Override
@@ -122,6 +134,9 @@ public class MdnsConnectivityService extends ConnectivityService
 	        } catch (IOException e) {
 	            e.printStackTrace();
 	            return;
+			} catch (Exception e)
+			{
+				e.printStackTrace();
 			}
         }
 	}

@@ -87,6 +87,21 @@ public class RemoteDialerDevices extends ArrayList<RemoteDevice> implements Parc
 		reportNewDevices();
 	}
 
+	public void updateDefaultDeviceNameAndUid(String newName) throws Exception
+	{
+		if (mContext == null)
+			throw new Exception("Readonly instance");
+		
+		System.out.print("updateDefaultDeviceNameAndUid(): " + newName); 
+		String[] nameAndUid = newName.split("\\|");
+		mDefaultDeviceName = nameAndUid[0];
+		if (nameAndUid.length > 1)
+			mDefaultDeviceUid = nameAndUid[1];
+		else
+			mDefaultDeviceUid = "";
+		reportNewDevices();
+	}
+
 	public void addDevice(ServiceInfo info) throws Exception
 	{
 		addDevice(new RemoteDevice().Init(info));

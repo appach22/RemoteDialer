@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 
 import com.googlecode.androidannotations.api.BackgroundExecutor;
@@ -41,7 +42,7 @@ public class BroadcastConnectivityService extends ConnectivityService
         // Если DHCP информацию получить не удалось - выходим
         if (dhcp == null)
         	return false;
-
+        
         // Получаем сервис Alarm Manager'а
         mAlarmManager = (AlarmManager)mParentService.getSystemService(Context.ALARM_SERVICE);
         // Если не получили - выходим
@@ -63,7 +64,9 @@ public class BroadcastConnectivityService extends ConnectivityService
 			mPendingAlarmIntent = PendingIntent.getBroadcast(mParentService, 0, intent, 0);
 			// Запускаем Alarm с периодичностью в минуту начиная с текущего момента времени 
 			mAlarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), 1000 * 60, mPendingAlarmIntent);
-			
+
+			// Попросим всех, кто не спит, откликнуться
+			requestOthersInfo();
 		} catch (UnknownHostException e)
 		{
 			e.printStackTrace();
@@ -71,6 +74,36 @@ public class BroadcastConnectivityService extends ConnectivityService
 		}
         return true;
     }
+	
+	private void sendMyInfo()
+	{
+		try
+		{
+			String info = "DeviceInfo|" + 
+					  mParentService.getDevices().mThisDeviceName + "|" +
+					  mParentService.getDevices().mThisDeviceUid + "|" +
+					  RemoteDialerDevices.DEFAULT_DEVICE_NAME;
+			if (mBroadcastAddr != null)
+				sendDatagram(mBroadcastAddr, info);
+		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+	}
+	
+	private void requestOthersInfo()
+	{
+		try
+		{
+			sendDatagram(mBroadcastAddr, "GetDeviceInfo");
+		} catch (SocketException e)
+		{
+			e.printStackTrace();
+		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+	}
 	
 	public void processBroadcastPackets()
 	{
@@ -95,11 +128,14 @@ public class BroadcastConnectivityService extends ConnectivityService
 			    }
 			    else if (infoFromPacket.startsWith("GetDeviceInfo"))
 			    {
-			    	// TODO: Отправлять информацию о девайсах в ответ на запрос 
+			    	sendMyInfo();
 			    }
 			}
 			
 		} catch (IOException e)
+		{
+			e.printStackTrace();
+		} catch (Exception e)
 		{
 			e.printStackTrace();
 		}
@@ -163,8 +199,19 @@ public class BroadcastConnectivityService extends ConnectivityService
 				mAlarmManager = null;
 	        }
 		}
+		mBroadcastAddr = null;
         mServiceState = STATE_STOPPED;
         System.out.println("BroadcastConnectivityService stopped");
 	}
 
+	static void sendDatagram(InetAddress address, String message) throws IOException
+	{
+		byte[] sendData = message.getBytes();
+		DatagramSocket broadcastSocket;
+		broadcastSocket = new DatagramSocket();
+		broadcastSocket.setBroadcast(true);
+		DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, address, RemoteDialerService.RDIALER_SERVICE_PORT);
+		broadcastSocket.send(sendPacket);
+		broadcastSocket.close();
+	}
 }
