@@ -309,6 +309,10 @@ public class RemoteDialerService extends Service
 			    	dialNumber(clientRequest.split(" ")[1]);
 			    	serverReply = "Accepted\n";
 			    }
+			    else if (clientRequest.equalsIgnoreCase("CheckAvailability"))
+			    {
+			    	serverReply = "Accepted\n";
+			    }
 			    outToClient.writeBytes(serverReply);
 			}
 		} catch (IOException e)
